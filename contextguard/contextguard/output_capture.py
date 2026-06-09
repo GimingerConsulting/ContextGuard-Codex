@@ -12,6 +12,32 @@ from .database import connect, increment
 from .output_compactor import compact_output
 
 
+NOISY_MEDIUM_BYTES = 2048
+SMALL_PASSTHROUGH_BYTES = 4096
+
+
+def _is_noisy_medium_output(summary: dict) -> bool:
+    raw_bytes = int(summary.get("raw_bytes", 0))
+    if raw_bytes < NOISY_MEDIUM_BYTES:
+        return False
+    if summary.get("errors"):
+        return True
+    return int(summary.get("line_count", 0)) > 50
+
+
+def _render_summary(argv: list[str], summary: dict) -> str:
+    lines = [
+        "ContextGuard capture summary",
+        f"command: {' '.join(argv)}",
+        f"exit_code: {summary['exit_code']}",
+        f"duration_ms: {summary['duration_ms']}",
+        f"raw_bytes: {summary['raw_bytes']}",
+    ]
+    lines.extend(summary["summary_lines"])
+    lines.append(f"full_output: {summary['summary_path']}")
+    return "\n".join(lines) + "\n"
+
+
 def capture(root: Path, argv: list[str]) -> int:
     tmp_dir = state_dir(root) / "tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -33,6 +59,7 @@ def capture(root: Path, argv: list[str]) -> int:
             "duration_ms": duration_ms,
             "stdout_path": stdout_path.as_posix(),
             "stderr_path": stderr_path.as_posix(),
+            "summary_path": summary_path.as_posix(),
         }
     )
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
@@ -43,21 +70,21 @@ def capture(root: Path, argv: list[str]) -> int:
     )
     increment(conn, "commands_intercepted", 1)
     increment(conn, "raw_output_bytes", summary["stdout_bytes"] + summary["stderr_bytes"])
-    increment(conn, "compact_output_bytes", len(json.dumps(summary).encode()))
+    raw_bytes = summary["raw_bytes"]
+    should_compact = raw_bytes > SMALL_PASSTHROUGH_BYTES or _is_noisy_medium_output(summary)
+    if should_compact:
+        rendered = _render_summary(argv, summary)
+        shown_bytes = len(rendered.encode())
+    else:
+        shown_bytes = raw_bytes
+    increment(conn, "compact_output_bytes", shown_bytes)
+    increment(conn, "estimated_saved_bytes", max(0, raw_bytes - shown_bytes))
     conn.commit()
-    raw_bytes = summary["stdout_bytes"] + summary["stderr_bytes"]
-    if raw_bytes <= 4096:
+    if not should_compact:
         if proc.stdout:
             print(proc.stdout, end="")
         if proc.stderr:
             print(proc.stderr, end="", file=sys.stderr)
         return proc.returncode
-    print("ContextGuard capture summary")
-    print(f"command: {' '.join(argv)}")
-    print(f"exit_code: {proc.returncode}")
-    print(f"duration_ms: {duration_ms}")
-    print(f"raw_bytes: {raw_bytes}")
-    for line in summary["summary_lines"]:
-        print(line)
-    print(f"full_output: {summary_path}")
+    print(rendered, end="")
     return proc.returncode

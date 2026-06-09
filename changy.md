@@ -14,3 +14,10 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Strengthened ContextGuard internals for real use before manual testing.
 - Expanded tests to 29 cases.
 - Added benchmark harness and richer metrics.
+
+## 2026-06-09 Savings Improvements
+
+- Added medium noisy-output compaction and shorter high-confidence capsules.
+- Added visible lifetime savings estimates in status/report.
+- Expanded tests to 34 cases.
+- Realistic A/B improved to 81.64% estimated token savings with identical patch and passing tests.

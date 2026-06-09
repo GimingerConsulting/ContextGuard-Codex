@@ -55,6 +55,8 @@ contextguard large-file data.json --contains error --limit 10
 contextguard uninstall-project
 ```
 
+`status` and `report` show project-local lifetime estimates, including measured raw output bytes, compact output bytes, estimated tokens saved and estimated reduction percentage. These are local estimates, not exact Codex server-side usage numbers.
+
 ## Architecture
 
 - Skills provide explicit user commands.

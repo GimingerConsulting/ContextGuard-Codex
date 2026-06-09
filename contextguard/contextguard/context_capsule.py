@@ -14,19 +14,19 @@ def build_capsule(root: Path, prompt: str, token_limit: int = 400) -> str:
             "Start with targeted search, symbol/range inspection and automatic context escalation when needed."
         )
     else:
-        files = ", ".join(result["likely_files"][:6]) or "none"
+        files = ", ".join(result["likely_files"][:4]) or "none"
         symbols = ", ".join(
             f"{item['name']}@{item['path']}:{item['line']}"
-            for item in result.get("likely_symbols", [])[:4]
+            for item in result.get("likely_symbols", [])[:2]
         ) or "none"
-        tests = ", ".join(result.get("relevant_tests", [])[:4]) or "none"
+        tests = ", ".join(result.get("relevant_tests", [])[:3]) or "none"
         text = (
-            "ContextGuard task capsule: "
+            "ContextGuard capsule: "
             f"confidence={result['confidence']}; "
             f"files={files}; "
             f"symbols={symbols}; "
             f"tests={tests}; "
-            "start with metadata/search/ranges, expand if evidence is insufficient."
+            "start scoped; expand if needed."
         )
     while estimate_tokens(text) > token_limit and "\n-" in text:
         text = "\n".join(text.splitlines()[:-1])

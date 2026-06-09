@@ -54,3 +54,20 @@
 
 - Current local plugin validation rejects top-level `hooks` in `plugin.json`; hook files are included and documented, but actual hook activation must be confirmed in the target Codex surface after plugin installation.
 - Token savings remain conservative local estimates, not verified Codex server-side usage numbers.
+
+## 2026-06-09 Savings Improvements
+
+### Changes
+
+- Added medium noisy-output compaction for test failures and repeated error output above 2 KB.
+- Kept small command output passthrough for low-overhead correctness.
+- Shortened high-confidence task capsules by reducing list counts and wording.
+- Added project lifetime savings visibility in `contextguard status` and `contextguard report`.
+- Added measured `estimated_saved_bytes`, `estimated_tokens_saved`, and `estimated_reduction_percent` metrics.
+- Added tests for medium noisy-output compaction, lifetime savings visibility, compact byte accounting and compact high-confidence capsules.
+
+### Validation
+
+- Full test suite: 34 passed.
+- Plugin validation: passed.
+- Realistic subscription-preview A/B after improvements: same patch, both workflows passed 17 tests, ContextGuard reduced estimated tokens from 6,779 to 1,244, saving 5,535 estimated tokens or 81.64%.

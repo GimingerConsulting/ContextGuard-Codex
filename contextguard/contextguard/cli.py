@@ -56,6 +56,8 @@ def status(args: argparse.Namespace) -> int:
     print(f"Last refresh: {metrics.get('last_refresh', 'unknown')}")
     print(f"Current project files indexed: {metrics.get('files_indexed', 0)}")
     print(f"Current session commands intercepted: {metrics.get('commands_intercepted', 0)}")
+    print(f"Lifetime estimated tokens saved: {metrics.get('estimated_tokens_saved', 0)}")
+    print(f"Lifetime context reduction: {metrics.get('estimated_reduction_percent', 0)}%")
     print(f"Estimated net context reduction: {metrics.get('estimated_tokens_avoided', 0)} tokens (estimate)")
     return 0
 
