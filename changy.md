@@ -33,3 +33,11 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Aligned `plugin.json` interface metadata with the new ContextGuard marketplace copy.
 - Removed screenshot metadata so the plugin page relies on `icon.png` and `logo.png`.
 - Changed plugin category metadata to `Productivity`.
+
+## 2026-06-09 Complex Context Savings Test
+
+- Re-validated the plugin manifest and full test suite: 34 passed.
+- Ran the built-in benchmark harness across 7 fixtures.
+- Ran a complex RAW-vs-ContextGuard feature simulation for temporary billing price override windows.
+- Result: both workflows passed the same 6 feature tests with identical invoice output.
+- Measured estimate: RAW 219,896 tokens vs ContextGuard 3,138 tokens, saving 216,758 tokens or 98.57%.

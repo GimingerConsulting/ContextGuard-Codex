@@ -98,3 +98,33 @@
 
 - Problem: the requested interface block did not include `capabilities`, but current local plugin validation requires `interface.capabilities`.
   Solution: keep `Interactive`, `Read` and `Write` capabilities in the manifest while matching the requested user-facing copy and assets.
+
+## 2026-06-09 Complex Context Savings Test
+
+### Validation
+
+- Plugin manifest validation passed for `contextguard/`.
+- Full test suite passed: 34 tests.
+- Built-in benchmark harness passed across 7 fixtures with matching RAW and ContextGuard exit codes.
+- Smoke-tested `contextguard init`, `contextguard status` and `contextguard report` on a temporary project.
+
+### RAW-vs-ContextGuard Scenario
+
+- Simulated a realistic feature task in a temporary Python billing project with source modules, tests, 30 unrelated report helpers, a large audit log, a large JSON fixture and architecture documentation.
+- Task: implement temporary pricing override windows for invoices, including inclusive date windows, unknown-SKU validation, invalid-window validation and most-specific overlapping override behavior.
+- RAW workflow used broad project context, full file contents and raw test output.
+- ContextGuard workflow used project init, a task capsule, targeted search, selected relevant files and captured test output.
+- Both workflows used the same implementation strategy, passed the same 6 feature tests and produced identical sample invoice output.
+- Estimated context use: RAW 219,896 tokens, ContextGuard 3,138 tokens.
+- Estimated savings: 216,758 tokens, 98.57% reduction, 70.08x lower context volume.
+
+### Problems And Solutions
+
+- Problem: the first benchmark harness attempt failed before measuring because the temporary fixture generator missed a `Decimal` import.
+  Solution: added the missing import in the temporary test harness and reran.
+
+- Problem: the next attempt did not place the temporary project's `src/` directory on `PYTHONPATH`, so both RAW and ContextGuard failed import resolution.
+  Solution: added project-local `src/` to the subprocess environment and reran.
+
+- Problem: the simulated tests initially asserted `line.unit_price`, but invoice lines are serialized as dictionaries.
+  Solution: corrected the temporary test fixture to assert `line["unit_price"]`, then reran until both workflows passed.
