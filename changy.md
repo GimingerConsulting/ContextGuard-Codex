@@ -129,3 +129,11 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Both CLI 0.128.0 and pinned CLI 0.139.0 reruns passed all 130 tests with identical canonical output, but were rejected because `codex exec` dispatched zero hooks.
 - Verified the problem with marker-only hooks and found matching upstream Codex issues 25875, 26383 and 26452.
 - Published the exact rejected token/time samples with `accepted_run: false`; no ContextGuard efficiency claim is made from those inactive trials.
+
+## 2026-06-10 Direct Hard Output A/B
+
+- Added a direct RAW-versus-real-ContextGuard PostToolUse benchmark using the identical 130-failure pytest output.
+- RAW exposed 80,573 bytes / 20,650 `o200k_base` tokens; ContextGuard exposed 2,132 bytes / 543 tokens.
+- ContextGuard saved 20,107 visible tokens, a 97.37% reduction, at 42.5 ms median additional processing time across eleven samples.
+- The complete archived output remained byte-identical, and the visible compact output retained the total failure summary, 20 failed-test names and representative root failures.
+- Full suite: 61 tests passed.

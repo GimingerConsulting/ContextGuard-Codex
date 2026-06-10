@@ -75,6 +75,18 @@ def test_post_tool_use_compacts_noisy_medium_output(tmp_path: Path):
     assert len(result["reason"].encode()) < 2000
 
 
+def test_post_tool_use_keeps_failed_test_names_visible(tmp_path: Path):
+    output = "\n".join(
+        ["FAILED tests/test_orders.py::test_cap - AssertionError: cap"]
+        + [f"FAILED tests/test_orders.py::test_case_{index} - AssertionError" for index in range(40)]
+        + ["41 failed in 0.25s"]
+    )
+    result = run_hook("post_tool_use.py", {"tool_name": "Bash", "tool_response": output}, tmp_path)
+    assert "failed_tests:" in result["reason"]
+    assert "tests/test_orders.py::test_cap" in result["reason"]
+    assert "41 failed in 0.25s" in result["reason"]
+
+
 def test_pre_compact_persists_compact_session_facts(tmp_path: Path):
     result = run_hook(
         "pre_compact.py",

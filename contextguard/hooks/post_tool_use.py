@@ -32,6 +32,7 @@ if isinstance(output, str) and (raw_bytes > SMALL_PASSTHROUGH_BYTES or is_noisy_
     feedback = (
         "ContextGuard compacted large tool output:\n"
         + (f"tests: {compact['test_summary']}\n" if compact.get("test_summary") else "")
+        + ("failed_tests:\n" + "\n".join(f"- {name}" for name in compact["failed_tests"]) + "\n" if compact.get("failed_tests") else "")
         + "\n".join(compact["errors"] + compact["warnings"])
         + (f"\nstack_trace:\n{compact['stack_traces'][0]}" if compact.get("stack_traces") else "")
         + f"\nfull_output: {output_path}\nsummary: {summary_path}"

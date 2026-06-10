@@ -230,3 +230,13 @@
 - Reproduced the failure independently with project hooks, user hooks, inline TOML hooks, an installed ContextGuard plugin, trusted projects, `--dangerously-bypass-hook-trust`, and marker-only hooks. Neither PreToolUse nor Stop executed under `codex exec`.
 - Confirmed matching upstream Codex reports: issues 25875, 26383 and 26452. The published result is marked blocked and contains the rejected measurements for auditability; it does not claim token savings or regression from runs where ContextGuard never activated.
 - Validation after the implementation changes: 58 tests passed and the 130-test fixture self-check passed.
+
+## 2026-06-10 Direct Hard Output A/B
+
+- Added `benchmarks/output_ab.py`, which feeds one identical 130-failure pytest output to the RAW path and the real ContextGuard PostToolUse hook.
+- Strengthened compact output with up to 20 visible failed-test names in addition to the summary and representative errors.
+- Acceptance requires byte-identical archived full output, a visible test summary, concrete failed tests and fewer visible tokens.
+- Measured with `o200k_base`: RAW 80,573 bytes / 20,650 tokens; ContextGuard 2,132 bytes / 543 tokens.
+- Savings: 20,107 visible tool-output tokens, 97.37% reduction. Median ContextGuard processing overhead across eleven samples: 42.5 ms.
+- Information check passed: the complete archived output SHA-256 matched RAW, while the compact response retained `130 failed`, 20 failed-test names and representative conversion, cap, canonical-scenario and duplicate-reporting failures.
+- Final validation: 61 tests passed.

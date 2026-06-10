@@ -1,0 +1,23 @@
+{
+  "archived_output_sha256": "4ad2d26fa8ecb115a5ff99f99039a94c78d2dc1f6914d9083d517640d1e09c4c",
+  "benchmark": "hard-130-failure-output-raw-vs-contextguard",
+  "command": "python3 -m pytest -q",
+  "command_seconds": 0.496968,
+  "contextguard_hook_seconds_median": 0.051218,
+  "contextguard_overhead_seconds": 0.042466,
+  "contextguard_visible_bytes": 2132,
+  "contextguard_visible_tokens": 543,
+  "equivalent_information": true,
+  "exit_code": 1,
+  "failed_test_present": true,
+  "raw_output_sha256": "4ad2d26fa8ecb115a5ff99f99039a94c78d2dc1f6914d9083d517640d1e09c4c",
+  "raw_tokenization_seconds_median": 0.008752,
+  "raw_visible_bytes": 80573,
+  "raw_visible_tokens": 20650,
+  "summary_present": true,
+  "timing_samples": 11,
+  "token_reduction_percent": 97.37,
+  "tokenizer": "o200k_base via tiktoken",
+  "tokens_saved": 20107,
+  "visible_summary": "ContextGuard compacted large tool output:\ntests: 130 failed in 0.27s\nfailed_tests:\n- tests/test_settlement.py::test_half_even_conversion_matrix[0]\n- tests/test_settlement.py::test_half_even_conversion_matrix[1]\n- tests/test_settlement.py::test_half_even_conversion_matrix[2]\n- tests/test_settlement.py::test_half_even_conversion_matrix[3]\n- tests/test_settlement.py::test_half_even_conversion_matrix[4]\n- tests/test_settlement.py::test_half_even_conversion_matrix[5]\n- tests/test_settlement.py::test_half_even_conversion_matrix[6]\n- tests/test_settlement.py::test_half_even_conversion_matrix[7]\n- tests/test_settlement.py::test_half_even_conversion_matrix[8]\n- tests/test_settlement.py::test_half_even_conversion_matrix[9]\n- tests/test_settlement.py::test_half_even_conversion_matrix[10]\n- tests/test_settlement.py::test_half_even_conversion_matrix[11]\n- tests/test_settlement.py::test_half_even_conversion_matrix[12]\n- tests/test_settlement.py::test_half_even_conversion_matrix[13]\n- tests/test_settlement.py::test_half_even_conversion_matrix[14]\n- tests/test_settlement.py::test_half_even_conversion_matrix[15]\n- tests/test_settlement.py::test_half_even_conversion_matrix[16]\n- tests/test_settlement.py::test_half_even_conversion_matrix[17]\n- tests/test_settlement.py::test_half_even_conversion_matrix[18]\n- tests/test_settlement.py::test_half_even_conversion_matrix[19]\nFAILED tests/test_settlement.py::test_half_even_conversion_matrix[0] - Assert...\nFAILED tests/test_settlement.py::test_half_even_conversion_matrix[10] - Asser...\nFAILED tests/test_settlement.py::test_caps_balance_and_idempotency_matrix[9000]\nFAILED tests/test_settlement.py::test_canonical_scenario - assert 113050 == 9424\nFAILED tests/test_settlement.py::test_duplicate_reporting_is_idempotent_for_three_occurrences"
+}
