@@ -2,6 +2,19 @@
 
 See [contextguard/changy.md](contextguard/changy.md) for the detailed implementation protocol.
 
+## 2026-06-13 ContextGuard Usage Optimization Audit
+
+- Ran the hard settlement RAW-vs-ContextGuard benchmark in two isolated temporary Git projects with identical prompt, GPT-5.5 medium reasoning, required initial failing tests, implementation work, and final 130-test validation.
+- Acceptance passed: both repositories finished with 130/130 tests passing and the same canonical settlement output.
+- RAW versus ContextGuard: 261,837 vs 112,508 total input tokens (-57.03%), 39,373 vs 30,076 uncached input (-23.61%), 222,464 vs 82,432 cached input (-62.95%), 4,069 vs 3,351 output tokens (-17.65%), 92,679 vs 10,291 tool-output bytes (-88.90%), 11 vs 6 commands (-45.45%), and 110.416s vs 75.504s elapsed (-31.62%).
+- At the official 2026-06-13 GPT-5.5 Codex rate card, the sample computes to 10.754 RAW credits versus 7.303 ContextGuard credits: 3.451 credits or 32.09% saved. Per 1,000 credits that is roughly 93 versus 137 equivalent runs, subject to stochastic variation.
+- Credit composition was RAW 4.922 uncached + 2.781 cached + 3.052 output, versus ContextGuard 3.760 + 1.030 + 2.513. The largest measured gain came from avoiding repeated cached context and unnecessary command rounds, not only compacting one output.
+- The ten-scenario local matrix preserved result hashes and output quality in every case. Small-output scenarios saved no bytes and added roughly 55-80ms capture overhead; noisy tests, JSON, logs, and repository listings avoided 4,364-28,228 visible bytes per command.
+- Current project instruction/context files total about 492 tokens (`AGENTS.md` 174, architecture 176, current state 142), so trimming them is useful but not the primary measured opportunity.
+- Prioritized opportunities: route routine work to GPT-5.4/mini; add explicit milestone checkpoint-and-resume to avoid carrying long thread history; enforce content-hash-aware read reuse and grouped inspections; avoid capture for confidently small commands; keep full validation once while using targeted tests during iteration; disable unused MCP/plugins and keep nested `AGENTS.md` instructions scoped.
+- Main risk: more aggressive summaries or skipped validation could improve metrics while reducing correctness. Future acceptance must continue requiring identical outputs, preserved archives, and complete tests.
+- Local artifact: `.contextguard/reports/real-codex-hard-ab-2026-06-13/summary.json`.
+
 ## 2026-06-13 Isolated Real Codex RAW vs ContextGuard A/B
 
 - Created two temporary identical Git projects and isolated Codex homes, then ran the same prompt once with RAW command execution and once through the ContextGuard project runner using `gpt-5.5` with low reasoning effort.
