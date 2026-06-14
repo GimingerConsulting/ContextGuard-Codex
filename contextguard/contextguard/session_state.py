@@ -44,6 +44,7 @@ def _empty_state(checkpoint: dict | None = None) -> dict:
         "checkpoint": checkpoint or {},
         "commands": [],
         "reads": {},
+        "evidence": {},
         "advice_emitted": [],
         "metrics": {"repeated_reads_detected": 0, "budget_advice_emitted": 0},
     }
@@ -98,3 +99,23 @@ def persist_checkpoint(root: Path, facts: dict) -> dict:
     state["checkpoint"] = compact
     save_session_state(root, state)
     return compact
+
+
+def record_evidence(root: Path, fingerprint: str, summary_path: str) -> dict:
+    state = load_session_state(root)
+    evidence = state.setdefault("evidence", {})
+    existing = evidence.get(fingerprint)
+    if existing:
+        existing["occurrences"] = int(existing.get("occurrences", 1)) + 1
+        save_session_state(root, state)
+        return {
+            "repeated": True,
+            "occurrences": existing["occurrences"],
+            "first_summary_path": existing["first_summary_path"],
+        }
+    evidence[fingerprint] = {
+        "occurrences": 1,
+        "first_summary_path": summary_path,
+    }
+    save_session_state(root, state)
+    return {"repeated": False, "occurrences": 1, "first_summary_path": summary_path}

@@ -1,0 +1,23 @@
+{
+  "archived_output_sha256": "fde82a8a851efd609e3e9c72c380a4642db96f5c9733bc8e6be502042967e791",
+  "benchmark": "hard-130-failure-output-raw-vs-contextguard",
+  "command": "python3 -m pytest -q",
+  "command_seconds": 0.423655,
+  "contextguard_hook_seconds_median": 0.076568,
+  "contextguard_overhead_seconds": 0.072596,
+  "contextguard_visible_bytes": 361,
+  "contextguard_visible_tokens": 91,
+  "equivalent_information": true,
+  "exit_code": 1,
+  "failed_test_present": true,
+  "raw_output_sha256": "fde82a8a851efd609e3e9c72c380a4642db96f5c9733bc8e6be502042967e791",
+  "raw_tokenization_seconds_median": 0.003972,
+  "raw_visible_bytes": 80573,
+  "raw_visible_tokens": 20650,
+  "summary_present": true,
+  "timing_samples": 7,
+  "token_reduction_percent": 99.56,
+  "tokenizer": "o200k_base via tiktoken",
+  "tokens_saved": 20559,
+  "visible_summary": "ContextGuard repeated evidence (7); reuse prior diagnosis.\ntests: 130 failed in 0.24s\nfailed_tests:\n- tests/test_settlement.py::test_half_even_conversion_matrix[0]\n- tests/test_settlement.py::test_half_even_conversion_matrix[1]\n- tests/test_settlement.py::test_half_even_conversion_matrix[2]"
+}

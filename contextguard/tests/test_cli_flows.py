@@ -113,6 +113,44 @@ def test_capture_runner_emits_budget_advice_without_hooks(tmp_path: Path):
     assert "targeted tests" in second.stdout
 
 
+def test_capture_references_repeated_equivalent_evidence(tmp_path: Path):
+    run_cli(["init"], tmp_path)
+    command = [
+        "capture",
+        "--",
+        sys.executable,
+        "-c",
+        "for _ in range(200): print('ERROR stable failure signature')\nraise SystemExit(1)",
+    ]
+
+    first = run_cli(command, tmp_path)
+    second = run_cli(command, tmp_path)
+
+    assert first.returncode == second.returncode == 1
+    assert "unique_errors:" in first.stdout
+    assert "ContextGuard repeated evidence" in second.stdout
+    assert "unique_errors:" not in second.stdout
+    assert len(second.stdout.encode()) < len(first.stdout.encode())
+
+
+def test_capture_unexplained_failure_requests_bounded_escalation(tmp_path: Path):
+    result = run_cli(
+        [
+            "capture",
+            "--",
+            sys.executable,
+            "-c",
+            "print('x' * 5000)\nraise SystemExit(3)",
+        ],
+        tmp_path,
+    )
+
+    assert result.returncode == 3
+    assert "escalation: failed_without_diagnostic" in result.stdout
+    assert "bounded slice" in result.stdout
+    assert len(result.stdout.encode()) < 1400
+
+
 def test_project_runner_capture_compacts_before_output_reaches_host(tmp_path: Path):
     project = tmp_path / "runner project"
     project.mkdir()

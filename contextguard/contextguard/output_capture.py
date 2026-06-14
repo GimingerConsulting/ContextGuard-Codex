@@ -10,8 +10,9 @@ from pathlib import Path
 
 from .config import state_dir
 from .database import connect, increment
-from .output_compactor import compact_output
+from .output_compactor import compact_output, finalize_evidence
 from .optimization_advisor import analyze_command, analyze_completed_command, record_command
+from .session_state import record_evidence
 
 
 NOISY_MEDIUM_BYTES = 2048
@@ -28,12 +29,24 @@ def _is_noisy_medium_output(summary: dict) -> bool:
 
 
 def _render_summary(argv: list[str], summary: dict) -> str:
+    repeated = summary.get("repeated_evidence")
+    if repeated and repeated.get("repeated"):
+        rendered = (
+            f"ContextGuard repeated evidence ({repeated['occurrences']}); reuse prior diagnosis.\n"
+        )
+        if summary.get("test_summary"):
+            rendered += f"tests: {summary['test_summary']}\n"
+        if summary.get("failed_tests"):
+            rendered += "failed_tests:\n" + "\n".join(
+                f"- {name}" for name in summary["failed_tests"][:3]
+            ) + "\n"
+        if summary.get("optimization_advice"):
+            rendered += f"optimization_advice: {summary['optimization_advice']}\n"
+        return rendered + f"full_output: {summary.get('display_summary_path', summary['summary_path'])}\n"
     lines = [
         "ContextGuard capture summary",
-        f"command: {' '.join(argv)}",
         f"exit_code: {summary['exit_code']}",
         f"duration: {summary['duration_ms']} ms",
-        f"total_output_bytes: {summary['raw_bytes']}",
         f"raw_bytes: {summary['raw_bytes']}",
     ]
     if summary.get("test_summary"):
@@ -43,12 +56,24 @@ def _render_summary(argv: list[str], summary: dict) -> str:
         if values:
             lines.append(f"{title}:")
             lines.extend(f"- {value}" for value in values)
+    locations = (summary.get("evidence") or {}).get("locations") or []
+    if locations:
+        lines.append("locations:")
+        lines.extend(f"- {value}" for value in locations)
     if summary.get("stack_traces"):
         lines.append("stack_trace:")
         lines.append(summary["stack_traces"][0])
     if summary.get("optimization_advice"):
         lines.append(f"optimization_advice: {summary['optimization_advice']}")
-    lines.append(f"full_output: {summary['summary_path']}")
+    escalation = summary.get("escalation") or {}
+    if escalation.get("required"):
+        lines.append(f"escalation: {escalation['reason']}")
+        lines.append(f"next_action: {escalation['action']}")
+        samples = summary.get("summary_lines") or []
+        if samples:
+            lines.append("evidence_sample:")
+            lines.extend(f"- {line}" for line in samples[:2])
+    lines.append(f"full_output: {summary.get('display_summary_path', summary['summary_path'])}")
     return "\n".join(lines) + "\n"
 
 
@@ -78,8 +103,15 @@ def capture(root: Path, argv: list[str]) -> int:
             "stdout_path": stdout_path.as_posix(),
             "stderr_path": stderr_path.as_posix(),
             "summary_path": summary_path.as_posix(),
+            "display_summary_path": summary_path.relative_to(root).as_posix(),
             "optimization_advice": advice,
         }
+    )
+    finalize_evidence(summary)
+    summary["repeated_evidence"] = record_evidence(
+        root,
+        summary["evidence_fingerprint"],
+        summary_path.as_posix(),
     )
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     conn = connect(state_dir(root) / "index.sqlite")

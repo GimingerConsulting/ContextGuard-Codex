@@ -429,3 +429,16 @@
 - Result: capture enforcement works for the tested 0.4.1 workflow, but ContextGuard cannot guarantee lower total usage for every project or task. It reduces avoidable context sources; it does not control model exploration, prompt-cache accounting or OpenAI subscription quota calculation.
 - OpenAI documents token-priced API usage and plan-specific Codex limits, but no formula linking local run tokens to subscription usage windows. API savings are therefore directly plausible when billable tokens fall; a subscription usage-limit multiplier remains unverified.
 - Artifacts: `benchmarks/results/post-0.4.1-matrix-2026-06-14.json` and `benchmarks/results/real-codex-ci-ab-0.4.1-2026-06-14/summary.json`.
+
+## 2026-06-14 ContextGuard 0.4.2 Adaptive Evidence Pipeline
+
+- Added structured, fingerprinted evidence envelopes with outcomes, failed tests, diagnostics, locations, confidence and local escalation metadata.
+- Repeated equivalent capture and hook outputs now reuse prior evidence while retaining enough current test evidence for standalone correctness checks.
+- Removed visible command echoes, duplicate output metadata, absolute archive paths and routine next-action text. Full raw output and JSON summaries remain archived.
+- Added bounded guidance after three searches and strengthened the managed policy around one-time orientation, batched reads, targeted validation and evidence-only escalation.
+- Made the human CI benchmark model configurable.
+- Full suite reached 123 passing tests. Wheel/sdist build and isolated installed-copy acceptance passed. The hard output A/B retained byte-identical archives and equivalent failure information while reducing 20,650 RAW tokens to 91 visible tokens (99.56%).
+- All ten deterministic workloads remained result- and quality-equivalent. Noisy visible output improved over 0.4.1 by 22.52% for verbose tests, 28.17% for large JSON, 57.48% for repeated logs and 52.15% for large repository inspection.
+- Real GPT-5.5 and GPT-5.4-mini A/B attempts were invalid because the account usage limit stopped every agent before token or command execution. They are documented as an external validation blocker, not a product result.
+- Artifacts: `benchmarks/results/output-ab-0.4.2-2026-06-14.json` and `benchmarks/results/post-0.4.2-matrix-2026-06-14.json`.
+- Installed-copy acceptance measured 79.99% runner-output reduction and 99.36% repeated-hook reduction with complete archive equivalence.

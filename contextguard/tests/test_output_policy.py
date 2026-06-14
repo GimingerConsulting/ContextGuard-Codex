@@ -11,8 +11,10 @@ def test_policy_is_single_adaptive_maximum_efficiency_mode():
     policy = render_policy("python")
     assert POLICY_NAME in policy
     assert "Do not narrate routine inspection or tool use" in policy
+    assert "Orient once" in policy
+    assert "Escalate only the missing evidence" in policy
     assert "changed files, validation, and only real risks" in policy
-    assert len(policy.encode()) < 1100
+    assert len(policy.encode()) < 1300
 
 
 def test_task_complexity_controls_visible_planning():

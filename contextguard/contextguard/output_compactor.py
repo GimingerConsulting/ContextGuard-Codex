@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 
 
@@ -26,6 +28,57 @@ def _unique_matching(lines: list[str], pattern: re.Pattern[str], limit: int = 20
         if len(selected) >= limit:
             break
     return selected
+
+
+def _locations(lines: list[str], limit: int = 8) -> list[str]:
+    locations: list[str] = []
+    patterns = (
+        re.compile(r'File ["\']([^"\']+)["\'], line (\d+)'),
+        re.compile(r"(?<![\w/.-])([\w./-]+\.[A-Za-z0-9]+):(\d+)"),
+    )
+    for line in lines:
+        for pattern in patterns:
+            for path, line_number in pattern.findall(line):
+                location = f"{path}:{line_number}"
+                if location not in locations:
+                    locations.append(location)
+                if len(locations) >= limit:
+                    return locations
+    return locations
+
+
+def finalize_evidence(summary: dict) -> dict:
+    evidence = summary.get("evidence") or {}
+    exit_code = summary.get("exit_code")
+    diagnostic = bool(
+        evidence.get("failed_tests")
+        or evidence.get("errors")
+        or evidence.get("locations")
+        or summary.get("stack_traces")
+    )
+    failed = exit_code not in (None, 0) or evidence.get("outcome") == "failed"
+    if failed and not diagnostic:
+        summary["confidence"] = "low"
+        summary["escalation"] = {
+            "required": True,
+            "reason": "failed_without_diagnostic",
+            "action": "Inspect a bounded slice of the archived stdout/stderr.",
+        }
+        summary["next_action"] = summary["escalation"]["action"]
+    else:
+        summary["confidence"] = "high" if diagnostic or evidence.get("outcome") in {"passed", "failed"} else "medium"
+        summary["escalation"] = {"required": False, "reason": None, "action": None}
+        if evidence.get("outcome") == "passed":
+            summary["next_action"] = "Reuse this passing result until relevant code changes."
+        elif evidence.get("failed_tests") and evidence.get("locations"):
+            summary["next_action"] = "Inspect the listed location, patch, then rerun only the failed test."
+        elif evidence.get("failed_tests"):
+            summary["next_action"] = "Rerun one failed test with a short traceback, then patch."
+        elif failed:
+            summary["next_action"] = "Act on the unique diagnostic, then rerun the smallest relevant check."
+        else:
+            summary["next_action"] = None
+    return summary
 
 
 def compact_output(stdout: str, stderr: str = "", *, limit: int = 24) -> dict:
@@ -75,7 +128,26 @@ def compact_output(stdout: str, stderr: str = "", *, limit: int = 24) -> dict:
             break
     summary_text = "\n".join(selected)
     raw_bytes = len(stdout.encode()) + len(stderr.encode())
-    return {
+    outcome = "unknown"
+    if test_summary:
+        outcome = "failed" if re.search(r"\b(?:failed|error|errors)\b", test_summary, re.I) else "passed"
+    elif errors:
+        outcome = "failed"
+    evidence = {
+        "outcome": outcome,
+        "test_summary": test_summary,
+        "failed_tests": failed_tests[:20],
+        "errors": [_clip(line) for line in errors[:10]],
+        "warnings": warnings,
+        "locations": _locations(lines),
+    }
+    fingerprint_payload = {
+        key: value
+        for key, value in evidence.items()
+        if value not in (None, [], "", "unknown")
+    }
+    fingerprint_payload["summary_lines"] = selected
+    result = {
         "line_count": len(lines),
         "stdout_bytes": len(stdout.encode()),
         "stderr_bytes": len(stderr.encode()),
@@ -87,4 +159,9 @@ def compact_output(stdout: str, stderr: str = "", *, limit: int = 24) -> dict:
         "test_summary": test_summary,
         "stack_traces": stack_traces,
         "summary_lines": selected,
+        "evidence": evidence,
+        "evidence_fingerprint": hashlib.sha256(
+            json.dumps(fingerprint_payload, sort_keys=True).encode()
+        ).hexdigest(),
     }
+    return finalize_evidence(result)

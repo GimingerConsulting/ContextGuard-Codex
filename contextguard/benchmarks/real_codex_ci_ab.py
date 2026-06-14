@@ -211,17 +211,25 @@ def validate_fixture(root: Path) -> dict:
     }
 
 
-def build_codex_command(project: Path, *, optimized: bool) -> list[str]:
+def build_codex_command(project: Path, *, optimized: bool, model: str = "gpt-5.5") -> list[str]:
     command = shlex.split(os.environ.get("CONTEXTGUARD_CODEX_COMMAND", "codex"))
     command.extend([
-        "exec", "--json", "--ephemeral", "--ignore-rules", "--model", "gpt-5.5",
+        "exec", "--json", "--ephemeral", "--ignore-rules", "--model", model,
         "-c", 'model_reasoning_effort="medium"', "--sandbox", "danger-full-access",
         "-c", 'approval_policy="never"', "-c", "features.plugins=false", "-C", str(project), PROMPT,
     ])
     return command
 
 
-def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool, timeout: int) -> dict:
+def run_trial(
+    project: Path,
+    home: Path,
+    artifact_dir: Path,
+    *,
+    optimized: bool,
+    timeout: int,
+    model: str = "gpt-5.5",
+) -> dict:
     prepare_codex_home(home, project)
     if optimized:
         prepare_optimized_project(project)
@@ -231,7 +239,7 @@ def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool,
     import time
     started = time.perf_counter()
     try:
-        proc = subprocess.run(build_codex_command(project, optimized=optimized), cwd=project, env=environment, text=True, capture_output=True, timeout=timeout)
+        proc = subprocess.run(build_codex_command(project, optimized=optimized, model=model), cwd=project, env=environment, text=True, capture_output=True, timeout=timeout)
         stdout, stderr, exit_code, timed_out = proc.stdout, proc.stderr, proc.returncode, False
     except subprocess.TimeoutExpired as exc:
         stdout, stderr, exit_code, timed_out = exc.stdout or "", exc.stderr or "", 124, True
@@ -260,7 +268,7 @@ def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool,
     }
 
 
-def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
+def execute_ab(output_dir: Path, *, timeout: int = 1800, model: str = "gpt-5.5") -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     pairs = []
     for index, order in enumerate(RUN_ORDERS, start=1):
@@ -269,7 +277,7 @@ def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
             with tempfile.TemporaryDirectory(prefix=f"contextguard-ci-ab-{index}-{kind}-") as tmp:
                 root = Path(tmp)
                 project = create_fixture(root / "project")
-                results[kind] = run_trial(project, root / "home", output_dir / f"pair-{index}" / kind, optimized=kind == "contextguard", timeout=timeout)
+                results[kind] = run_trial(project, root / "home", output_dir / f"pair-{index}" / kind, optimized=kind == "contextguard", timeout=timeout, model=model)
         accepted = all([
             results["raw"]["validation"]["exit_code"] == 0,
             results["contextguard"]["validation"]["exit_code"] == 0,
@@ -286,7 +294,7 @@ def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
         cg_values = [pair["contextguard"][key] for pair in pairs]
         raw_median, cg_median = statistics.median(raw_values), statistics.median(cg_values)
         aggregate[key] = {"raw_values": raw_values, "contextguard_values": cg_values, "raw_median": raw_median, "contextguard_median": cg_median, "median_change_percent": percent_change(raw_median, cg_median)}
-    result = {"benchmark": "real-codex-human-ci-investigation-ab", "model": "gpt-5.5", "reasoning_effort": "medium", "run_orders": [list(order) for order in RUN_ORDERS], "all_pairs_accepted": all(pair["accepted"] for pair in pairs), "pairs": pairs, "aggregate": aggregate, "limitations": ["Two pairs expose order effects but model execution remains stochastic.", "Codex subscription quota accounting is not exposed by the CLI."]}
+    result = {"benchmark": "real-codex-human-ci-investigation-ab", "model": model, "reasoning_effort": "medium", "run_orders": [list(order) for order in RUN_ORDERS], "all_pairs_accepted": all(pair["accepted"] for pair in pairs), "pairs": pairs, "aggregate": aggregate, "limitations": ["Two pairs expose order effects but model execution remains stochastic.", "Codex subscription quota accounting is not exposed by the CLI."]}
     (output_dir / "summary.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return result
 
@@ -297,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=PLUGIN_ROOT / "benchmarks/results/real-codex-ci-ab-2026-06-14")
     parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument("--model", default="gpt-5.5")
     args = parser.parse_args(argv)
     if args.self_check:
         with tempfile.TemporaryDirectory(prefix="contextguard-ci-check-") as tmp:
@@ -307,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"before": before["exit_code"], "public_before": before["public_exit_code"], "after": after["exit_code"], "hidden_passed": after["hidden_passed_tests"], "canonical": after["canonical_output"]}, sort_keys=True))
             return int(after["exit_code"] != 0)
     if args.run:
-        result = execute_ab(args.output_dir, timeout=args.timeout)
+        result = execute_ab(args.output_dir, timeout=args.timeout, model=args.model)
         print(json.dumps(result["aggregate"], indent=2, sort_keys=True))
         return int(not result["all_pairs_accepted"])
     parser.error("choose --self-check or --run")

@@ -63,6 +63,8 @@ def compare_output(raw_output: str, project: Path, *, timing_samples: int = 7) -
     visible = result["reason"]
     full_output_line = next(line for line in visible.splitlines() if line.startswith("full_output: "))
     archived_path = Path(full_output_line.removeprefix("full_output: "))
+    if not archived_path.is_absolute():
+        archived_path = project / archived_path
     archived = archived_path.read_text(encoding="utf-8")
     raw_hash = hashlib.sha256(raw_output.encode()).hexdigest()
     archived_hash = hashlib.sha256(archived.encode()).hexdigest()

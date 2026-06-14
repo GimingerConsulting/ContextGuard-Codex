@@ -164,7 +164,10 @@ def evaluate_hooks(plugin: Path, project: Path, timing_samples: int) -> tuple[di
         (line for line in visible.splitlines() if line.startswith("full_output: ")),
         "",
     )
-    archived = Path(archived_line.removeprefix("full_output: ")).read_text(encoding="utf-8")
+    archived_path = Path(archived_line.removeprefix("full_output: "))
+    if not archived_path.is_absolute():
+        archived_path = failing_project / archived_path
+    archived = archived_path.read_text(encoding="utf-8")
     raw_hash = hashlib.sha256(raw_output.encode()).hexdigest()
     archived_hash = hashlib.sha256(archived.encode()).hexdigest()
     raw_tokens = token_count(raw_output)

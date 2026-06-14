@@ -93,3 +93,15 @@ def test_command_milestone_advice_is_deduplicated(tmp_path: Path):
 
     assert "12 commands" in first
     assert second == ""
+
+
+def test_three_searches_trigger_named_file_next_action(tmp_path: Path):
+    reset_session_state(tmp_path)
+    record_command(tmp_path, "rg -n alpha contextguard", succeeded=True)
+    record_command(tmp_path, "rg -n beta tests", succeeded=True)
+    record_command(tmp_path, "rg -n gamma docs", succeeded=True)
+
+    advice = analyze_command(tmp_path, "rg -n delta .")
+
+    assert "three searches" in advice.lower()
+    assert "named file" in advice.lower()

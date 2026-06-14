@@ -355,3 +355,17 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Conclusion: 0.4.1 reliably enforced capture in this scenario and sharply reduced model-visible noisy tool output without reducing solution quality. It does not guarantee lower total tokens, latency or subscription usage on every task; model exploration and prompt-cache composition can outweigh saved tool output. The universal all-project/all-task reduction claim is rejected.
 - Usage-limit interpretation: API-key billing should benefit when fewer billable tokens are sent because Codex API usage is token-priced. For ChatGPT/Codex subscription limits, OpenAI publishes plan limits but no conversion from local token counters to the usage window, so no verified quota multiplier or guaranteed number of extra tasks can be claimed.
 - Artifacts: `contextguard/benchmarks/results/post-0.4.1-matrix-2026-06-14.json` and `contextguard/benchmarks/results/real-codex-ci-ab-0.4.1-2026-06-14/summary.json`.
+
+## 2026-06-14 ContextGuard 0.4.2 Adaptive Evidence Pipeline
+
+- Added structured evidence extraction for outcomes, failed tests, unique diagnostics and source locations. Confidence and local escalation metadata preserve the full archive fallback when a failed command has no actionable diagnostic.
+- Added session-scoped evidence fingerprints. Repeated equivalent large outputs now retain a minimal decisive test/error reference instead of retransmitting the full compact summary.
+- Reduced visible overhead by removing command echoes, redundant byte fields, absolute archive paths and obvious next-action narration. Archive references are project-relative while stored metadata keeps complete paths.
+- Added a search budget after three searches, stronger evidence-first project guidance and reusable passing-validation semantics without imposing hard command limits.
+- Made the realistic CI benchmark model-configurable so quota behavior can be checked separately from product correctness.
+- Quality validation: 123 full-suite tests passed; the wheel/sdist build succeeded at version 0.4.2; isolated installation acceptance passed every package, runner, hook, archive and information-retention gate; the CI fixture self-check passed all 160 hidden cases with the canonical output.
+- Hard 130-failure output benchmark: 20,650 RAW tokens versus 91 ContextGuard-visible tokens, saving 20,559 tokens or 99.56%, with a byte-identical full archive and retained test summary/failed-test evidence.
+- Deterministic matrix preserved equal results and output quality in all ten workloads. Compared with 0.4.1, visible output improved from 1,221 to 946 bytes for verbose tests, 962 to 691 for large JSON, 468 to 199 for repeated log errors and 326 to 156 for large-repository inspection.
+- The four-agent GPT-5.5 rerun and the GPT-5.4-mini fallback were both rejected as measurements because the account returned the Codex usage-limit error before any tokens or commands ran. The CLI reported retry availability at 4:15 PM; zero-token artifacts are not treated as benchmark results.
+- Artifacts: `contextguard/benchmarks/results/output-ab-0.4.2-2026-06-14.json` and `contextguard/benchmarks/results/post-0.4.2-matrix-2026-06-14.json`.
+- Isolated installed-copy measurements: runner output saved 2,191 of 2,739 visible tokens (79.99%); repeated hook output saved 14,487 of 14,581 tokens (99.36%) while retaining byte-identical archives and concrete failure evidence.

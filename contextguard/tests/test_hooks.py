@@ -203,6 +203,18 @@ def test_post_tool_use_keeps_failed_test_names_visible(tmp_path: Path):
     assert "41 failed in 0.25s" in result["reason"]
 
 
+def test_post_tool_use_references_repeated_large_evidence(tmp_path: Path):
+    payload = {"tool_name": "Bash", "tool_response": "ERROR stable hook failure\n" * 5000}
+
+    first = run_hook("post_tool_use.py", payload, tmp_path)
+    second = run_hook("post_tool_use.py", payload, tmp_path)
+
+    assert "ERROR stable hook failure" in first["reason"]
+    assert "ContextGuard repeated evidence" in second["reason"]
+    assert "ERROR stable hook failure" not in second["reason"]
+    assert len(second["reason"].encode()) < len(first["reason"].encode())
+
+
 def test_pre_compact_persists_compact_session_facts(tmp_path: Path):
     result = run_hook(
         "pre_compact.py",

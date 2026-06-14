@@ -4,6 +4,7 @@ from benchmarks.real_codex_ci_ab import (
     PROMPT,
     RUN_ORDERS,
     apply_reference_solution,
+    build_codex_command,
     create_fixture,
     validate_fixture,
 )
@@ -40,3 +41,9 @@ def test_fixture_looks_like_normal_ci_investigation(tmp_path: Path):
     assert (project / "PR_REVIEW.md").exists()
     assert (project / "artifacts/CI_FAILURE.log").stat().st_size > 500_000
     assert not any(path.name == "test_hidden_ci.py" for path in project.rglob("*.py"))
+
+
+def test_ci_benchmark_model_is_configurable(tmp_path: Path):
+    command = build_codex_command(tmp_path, optimized=False, model="gpt-5.4-mini")
+
+    assert command[command.index("--model") + 1] == "gpt-5.4-mini"

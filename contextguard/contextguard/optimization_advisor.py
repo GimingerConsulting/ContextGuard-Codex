@@ -70,6 +70,8 @@ def _family(command: str) -> str:
         return "targeted_validation" if targeted else "full_validation"
     if joined.startswith("git diff") or joined.startswith("git status"):
         return "repository_check"
+    if parts[0] in {"rg", "grep"} and parts[:2] != ["rg", "--files"]:
+        return "search"
     return "other"
 
 
@@ -125,6 +127,14 @@ def analyze_command(root: Path, command: str) -> str:
             "budget:repository_check",
             "ContextGuard command budget: repository checks already ran twice. "
             "Group the next diff, status, and validation inspection.",
+            "budget_advice_emitted",
+        )
+    if family == "search" and family_count >= 3:
+        return _emit_once(
+            root,
+            state,
+            "budget:search",
+            "ContextGuard: three searches already ran. Reuse their hits; inspect or patch one named file next.",
             "budget_advice_emitted",
         )
     command_count = len(state.get("commands", []))
