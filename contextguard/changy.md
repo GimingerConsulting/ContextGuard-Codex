@@ -419,3 +419,13 @@
 - Measured 14,581 RAW tokens versus 528 ContextGuard-visible tokens using `o200k_base`: 14,053 tokens saved, or 96.38%, with 49.9 ms median hook time across fifteen samples.
 - Acceptance result: passed every deterministic package and hook-logic gate. Scope explicitly excludes Codex host hook dispatch and stochastic model behavior.
 - Final full suite: 62 tests passed.
+
+## 2026-06-14 ContextGuard 0.4.1 Post-Restart Audit
+
+- Verified the installed `0.4.1+codex.20260614093000` plugin, initialized project runner and observed lifecycle hooks after restarting Codex.
+- The ten-case deterministic matrix preserved identical outcomes. It reduced estimated net context by 15,892 tokens across noisy tests, JSON, logs and repository inspection, while six small or bounded cases saved zero tokens and incurred roughly 51-79 ms overhead.
+- The four-agent, two-pair CI investigation rerun passed every quality gate and both ContextGuard agents routed the large CI log and test output through `capture`.
+- Median model-visible tool output fell 73.15%, uncached input fell 1.20% and command count fell 6.98%. Total input rose 6.50%, output rose 30.00%, reasoning rose 19.87% and elapsed time rose 125.52% due to stochastic extra exploration.
+- Result: capture enforcement works for the tested 0.4.1 workflow, but ContextGuard cannot guarantee lower total usage for every project or task. It reduces avoidable context sources; it does not control model exploration, prompt-cache accounting or OpenAI subscription quota calculation.
+- OpenAI documents token-priced API usage and plan-specific Codex limits, but no formula linking local run tokens to subscription usage windows. API savings are therefore directly plausible when billable tokens fall; a subscription usage-limit multiplier remains unverified.
+- Artifacts: `benchmarks/results/post-0.4.1-matrix-2026-06-14.json` and `benchmarks/results/real-codex-ci-ab-0.4.1-2026-06-14/summary.json`.
