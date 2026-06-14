@@ -442,3 +442,4 @@
 - Real GPT-5.5 and GPT-5.4-mini A/B attempts were invalid because the account usage limit stopped every agent before token or command execution. They are documented as an external validation blocker, not a product result.
 - Artifacts: `benchmarks/results/output-ab-0.4.2-2026-06-14.json` and `benchmarks/results/post-0.4.2-matrix-2026-06-14.json`.
 - Installed-copy acceptance measured 79.99% runner-output reduction and 99.36% repeated-hook reduction with complete archive equivalence.
+- Published commit `ce37730` to GitHub `main`; Codex now has `0.4.2+codex.20260614121614` installed and enabled, and the current project runner/policy were refreshed from that cache entry.
