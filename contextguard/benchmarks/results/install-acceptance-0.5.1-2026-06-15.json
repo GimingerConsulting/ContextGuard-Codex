@@ -1,0 +1,64 @@
+{
+  "accepted": true,
+  "automatic_hooks": {
+    "post_tool_use": true,
+    "pre_tool_use": true,
+    "session_start": true,
+    "user_prompt_submit": true
+  },
+  "benchmark": "isolated-plugin-install-acceptance",
+  "empty_project": {
+    "automatic_init": true,
+    "index_exists": true,
+    "initialized": true,
+    "project_kind": "empty"
+  },
+  "execution_protection": {
+    "archived_raw_matches": true,
+    "exit_code_preserved": true,
+    "protected_visible_tokens": 548,
+    "raw_visible_tokens": 2739,
+    "reduction_percent": 79.99,
+    "runner_executable": true,
+    "runner_exists": true,
+    "runner_used": true,
+    "visible_output_reduced": true
+  },
+  "existing_project": {
+    "automatic_init": true,
+    "initialized": true,
+    "managed_section_added": true,
+    "project_kind": "existing",
+    "user_content_preserved": true
+  },
+  "guarantee_scope": "Deterministic installed project runner and package logic; real Codex model behavior remains stochastic.",
+  "hook_output_tokens": {
+    "contextguard_visible": 94,
+    "hook_seconds_median": 0.08178,
+    "raw_visible": 14581,
+    "reduction_percent": 99.36,
+    "saved": 14487,
+    "timing_samples": 3,
+    "tokenizer": "o200k_base via tiktoken"
+  },
+  "output_equivalence": {
+    "archived_raw_matches": true,
+    "archived_sha256": "cc651225b4a1d83927507fd996009d02b98206c9be85f71b98e26c1b390a4ffc",
+    "raw_exit_code": 1,
+    "raw_sha256": "cc651225b4a1d83927507fd996009d02b98206c9be85f71b98e26c1b390a4ffc",
+    "summary_and_failed_tests_preserved": true
+  },
+  "package": {
+    "hooks_match": true,
+    "installed_copy_used": true,
+    "manifest_matches": true
+  },
+  "tokens": {
+    "contextguard_visible": 548,
+    "measurement": "project-local capture stdout observed by the host",
+    "raw_visible": 2739,
+    "reduction_percent": 79.99,
+    "saved": 2191,
+    "tokenizer": "o200k_base via tiktoken"
+  }
+}

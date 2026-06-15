@@ -19,6 +19,7 @@ from .project_runner import install_project_runner, project_runner_ready, runner
 from .repo_map import detect_repo_facts
 from .session_state import load_session_state
 from .database import connect, increment
+from .source_inspector import InspectionError, inspect_sources
 
 
 def init_project(args: argparse.Namespace) -> int:
@@ -151,6 +152,27 @@ def large_file(args: argparse.Namespace) -> int:
     return 0
 
 
+def inspect(args: argparse.Namespace) -> int:
+    try:
+        data = inspect_sources(
+            Path.cwd(),
+            args.files,
+            symbol=args.symbol,
+            start_line=args.start_line,
+            end_line=args.end_line,
+        )
+    except InspectionError as exc:
+        payload = {
+            "ok": False,
+            "command": "inspect",
+            "error": {"code": exc.code, "message": str(exc)},
+        }
+        print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+        return 2
+    print(json.dumps(data, separators=(",", ":"), sort_keys=True))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="contextguard")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -179,6 +201,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--records")
     p.add_argument("--limit", type=int, default=10)
     p.set_defaults(func=large_file)
+    p = sub.add_parser("inspect")
+    p.add_argument("files", nargs="+")
+    p.add_argument("--symbol")
+    p.add_argument("--start-line", type=int)
+    p.add_argument("--end-line", type=int)
+    p.set_defaults(func=inspect)
     p = sub.add_parser("uninstall-project")
     p.add_argument("--path")
     p.add_argument("--yes", action="store_true")

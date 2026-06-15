@@ -464,3 +464,11 @@
 - Added router, installation, hook, output-policy, pricing, and benchmark tests. Focused validation passed 35 tests before release validation.
 - Real validation: both completed GPT-5.5 runs passed 160 hidden tests and produced the same canonical result. The routed run successfully spawned a separate worker. Aggregate CLI usage changed from 380,710 input / 6,017 output tokens to 387,693 input / 5,124 output tokens. The API parent-only cost ceiling fell from $0.559964 to $0.500697; exact mixed-model billing and subscription quota usage are not exposed by Codex CLI.
 - A subsequent clean A/B rerun could not start because the account hit its Codex Usage Limit; both arms returned zero tokens and the same 22:31 reset notice. This is retained as a benchmark limitation, not counted as a product failure.
+# 2026-06-15 - 0.5.1 bounded source inspector
+
+- Final validation: 147 tests passed; 10/10 deterministic fixtures preserved output quality, repository state, and exit codes; visible output was 66,634 RAW versus 2,077 ContextGuard bytes. Compile, diff, wheel/sdist, and isolated install acceptance passed, with 79.99% install-fixture output reduction.
+- Implemented the bounded `inspect` CLI and source validation module with compact JSON output, 2-4 file scope, symbol/range focus, output limits, fingerprints, and path/artifact safety checks.
+- Parent review added missing-file normalization, real symbol-focus tests, safe companion context, and bounded windows for source files larger than 200 lines.
+- Added a dedicated realistic inspector A/B harness. The completed live run passed 144 hidden tests and cut command events from the previous ContextGuard baseline of 34 to 15, while reducing tool output by 47.2% and uncached input by 42.5% relative to RAW.
+- The same run incorrectly spawned a worker for migration/concurrency work and attempted one full-history fork. Managed policy was strengthened to perform risk exclusion before delegation, forbid all subagents on high-risk tasks, and require isolated worker prompts.
+- Final live rerun was quota-blocked before execution for both arms; Codex reported a June 19, 2026 18:17 reset. This limitation is retained explicitly and is not counted as a passing live policy test.

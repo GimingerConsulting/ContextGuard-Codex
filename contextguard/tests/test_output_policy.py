@@ -16,6 +16,10 @@ def test_policy_is_single_adaptive_maximum_efficiency_mode():
     assert "contextguard-worker" in policy
     assert "exactly one bounded implementation worker" in policy
     assert "parent model must review" in policy
+    assert "Prefer `contextguard inspect` for 2-4 named source files" in policy
+    assert "Before any delegation, scan the task for the risk terms below" in policy
+    assert "do not spawn any subagent" in policy
+    assert "isolated prompt, never a full-history fork" in policy
     assert "changed files, validation, and only real risks" in policy
     assert len(policy.encode()) < 1800
 
