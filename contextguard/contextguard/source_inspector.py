@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import deque
 from pathlib import Path
 from typing import Iterable
 
 from .utils import is_binary, safe_relpath
 
-MIN_FILES = 2
+MIN_FILES = 1
 MAX_FILES = 4
 MAX_FILE_BYTES = 32_768
+MAX_SCAN_BYTES = 128 * 1024 * 1024
 MAX_TOTAL_BYTES = 96_000
 MAX_FILE_LINES = 200
 MAX_TOTAL_LINES = 500
@@ -119,6 +121,76 @@ def _as_lines(text: str) -> list[str]:
     return text.splitlines()
 
 
+def _read_selected_source(
+    path: Path,
+    *,
+    symbol: str | None,
+    start_line: int | None,
+    end_line: int | None,
+) -> tuple[list[str], int, int, str, int, int]:
+    """Scan a source file with bounded memory and retain only the requested window."""
+    explicit_range = start_line is not None or end_line is not None
+    if explicit_range:
+        requested_start = 1 if start_line is None else start_line
+        requested_end = requested_start + MAX_FILE_LINES - 1 if end_line is None else end_line
+        if requested_start < 1 or requested_end < requested_start:
+            _raise("invalid_range", "invalid line range")
+        if requested_end - requested_start + 1 > MAX_FILE_LINES:
+            _raise("range_too_large", f"line range exceeds {MAX_FILE_LINES} lines")
+    else:
+        requested_start = 1
+        requested_end = MAX_FILE_LINES
+
+    hasher = hashlib.sha256()
+    selected: list[str] = []
+    before: deque[tuple[int, str]] = deque(maxlen=SYMBOL_WINDOW_LINES // 2)
+    symbol_line: int | None = None
+    total_lines = 0
+    total_bytes = 0
+    after_remaining = 0
+    pattern = re.compile(rf"^\s*(?:def|class)\s+{re.escape(symbol)}\b|\b{re.escape(symbol)}\b") if symbol else None
+
+    with path.open("rb") as handle:
+        for raw_line in handle:
+            total_bytes += len(raw_line)
+            if total_bytes > MAX_SCAN_BYTES:
+                _raise("file_too_large", f"file exceeds scan limit: {path}")
+            hasher.update(raw_line)
+            total_lines += 1
+            line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+            if explicit_range:
+                if requested_start <= total_lines <= requested_end:
+                    selected.append(line)
+                continue
+            if symbol:
+                if symbol_line is None and pattern and pattern.search(line):
+                    symbol_line = total_lines
+                    selected.extend(item for _, item in before)
+                    selected.append(line)
+                    after_remaining = SYMBOL_WINDOW_LINES - len(selected)
+                elif symbol_line is not None and after_remaining > 0:
+                    selected.append(line)
+                    after_remaining -= 1
+                elif symbol_line is None:
+                    before.append((total_lines, line))
+                continue
+            if total_lines <= MAX_FILE_LINES:
+                selected.append(line)
+
+    if total_bytes > MAX_FILE_BYTES and not (explicit_range or symbol):
+        _raise("file_too_large", f"file exceeds byte limit: {path}")
+    if symbol and symbol_line is None:
+        _raise("symbol_not_found", f"symbol not found: {symbol}")
+    if explicit_range:
+        selected_start = requested_start
+    elif symbol_line is not None:
+        selected_start = max(1, symbol_line - (SYMBOL_WINDOW_LINES // 2))
+    else:
+        selected_start = 1
+    selected_end = selected_start + len(selected) - 1 if selected else selected_start - 1
+    return selected, selected_start, selected_end, hasher.hexdigest(), total_lines, total_bytes
+
+
 def inspect_sources(
     root: Path,
     files: Iterable[Path | str],
@@ -154,38 +226,34 @@ def inspect_sources(
         if is_binary(resolved):
             _raise("unsafe_file", f"binary file is not supported: {candidate}")
 
-        raw = resolved.read_bytes()
-        size = len(raw)
-        if size > MAX_FILE_BYTES:
-            _raise("file_too_large", f"file exceeds byte limit: {candidate}")
-        total_bytes += size
-        if total_bytes > MAX_TOTAL_BYTES:
-            _raise("total_too_large", "combined file bytes exceed limit")
-
-        text = raw.decode("utf-8")
-        lines = _as_lines(text)
-        line_count = len(lines)
-
         selected_symbol = symbol
         try:
-            selected_start, selected_end = _select_window(lines, symbol, start_line, end_line)
+            selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
+                resolved, symbol=symbol, start_line=start_line, end_line=end_line
+            )
             symbol_matched = symbol_matched or bool(symbol)
         except InspectionError as exc:
             if exc.code != "symbol_not_found" or start_line is not None or end_line is not None:
                 raise
             selected_symbol = None
-            selected_start, selected_end = _select_window(lines, None, None, None)
-        selected_lines = lines[selected_start - 1:selected_end]
+            selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
+                resolved, symbol=None, start_line=None, end_line=None
+            )
+        selected_bytes = len("\n".join(selected_lines).encode("utf-8"))
+        total_bytes += selected_bytes
+        if total_bytes > MAX_TOTAL_BYTES:
+            _raise("total_too_large", "combined selected bytes exceed limit")
         total_lines += len(selected_lines)
         if total_lines > MAX_TOTAL_LINES:
             _raise("total_too_large", "combined file lines exceed limit")
         entries.append(
             {
                 "path": safe_relpath(resolved, root),
-                "bytes": size,
+                "bytes": selected_bytes,
+                "source_bytes": source_bytes,
                 "line_count": len(selected_lines),
                 "source_line_count": line_count,
-                "fingerprint": _fingerprint(text),
+                "fingerprint": fingerprint,
                 "selection": {
                     "symbol": selected_symbol,
                     "start_line": selected_start,

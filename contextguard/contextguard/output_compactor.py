@@ -30,6 +30,35 @@ def _unique_matching(lines: list[str], pattern: re.Pattern[str], limit: int = 20
     return selected
 
 
+def _command_signal(lines: list[str], command: str, limit: int = 16) -> list[str]:
+    lowered = command.lower().strip()
+    if "git diff" in lowered or any(line.startswith("diff --git ") for line in lines):
+        signal = [
+            line for line in lines
+            if line.startswith("diff --git ") or line.startswith("@@ ") or re.search(r"\d+ files? changed", line)
+        ]
+    elif re.search(r"(?:^|\s)(?:rg|grep|find|git status)(?:\s|$)", lowered):
+        signal = [line for line in lines if line.strip()]
+    else:
+        return []
+    clipped = [_clip(line) for line in signal[:limit]]
+    if len(signal) > limit:
+        clipped.append(f"... {len(signal) - limit} additional signal lines archived")
+    return clipped
+
+
+def _test_outcome(test_summary: str | None) -> str:
+    if not test_summary:
+        return "unknown"
+    failed = re.search(r"\b(\d+)\s+failed\b", test_summary, re.I)
+    errors = re.search(r"\b(\d+)\s+errors?\b", test_summary, re.I)
+    if (failed and int(failed.group(1)) > 0) or (errors and int(errors.group(1)) > 0):
+        return "failed"
+    if re.search(r"\b\d+\s+passed\b", test_summary, re.I):
+        return "passed"
+    return "unknown"
+
+
 def _locations(lines: list[str], limit: int = 8) -> list[str]:
     locations: list[str] = []
     patterns = (
@@ -81,12 +110,14 @@ def finalize_evidence(summary: dict) -> dict:
     return summary
 
 
-def compact_output(stdout: str, stderr: str = "", *, limit: int = 24) -> dict:
+def compact_output(stdout: str, stderr: str = "", *, limit: int = 24, command: str = "") -> dict:
     combined = "\n".join(part for part in (stdout, stderr) if part)
     lines = combined.splitlines()
-    warnings = _unique_matching(lines, re.compile(r"\bwarning\b", re.I), 10)
+    is_diff = "git diff" in command.lower() or any(line.startswith("diff --git ") for line in lines)
+    diagnostic_lines = [line for line in lines if not (is_diff and line.startswith(("+", "-")))]
+    warnings = _unique_matching(diagnostic_lines, re.compile(r"warning", re.I), 10)
     errors = _unique_matching(
-        lines,
+        diagnostic_lines,
         re.compile(r"\b(error|failed|failure|exception)\b|^[A-Za-z_][A-Za-z0-9_.]*Error:", re.I),
         20,
     )
@@ -128,11 +159,10 @@ def compact_output(stdout: str, stderr: str = "", *, limit: int = 24) -> dict:
             break
     summary_text = "\n".join(selected)
     raw_bytes = len(stdout.encode()) + len(stderr.encode())
-    outcome = "unknown"
-    if test_summary:
-        outcome = "failed" if re.search(r"\b(?:failed|error|errors)\b", test_summary, re.I) else "passed"
-    elif errors:
+    outcome = _test_outcome(test_summary)
+    if outcome == "unknown" and errors and not is_diff:
         outcome = "failed"
+    signal_lines = _command_signal(lines, command)
     evidence = {
         "outcome": outcome,
         "test_summary": test_summary,
@@ -159,6 +189,7 @@ def compact_output(stdout: str, stderr: str = "", *, limit: int = 24) -> dict:
         "test_summary": test_summary,
         "stack_traces": stack_traces,
         "summary_lines": selected,
+        "signal_lines": signal_lines,
         "evidence": evidence,
         "evidence_fingerprint": hashlib.sha256(
             json.dumps(fingerprint_payload, sort_keys=True).encode()

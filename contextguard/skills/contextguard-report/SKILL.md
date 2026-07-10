@@ -1,6 +1,6 @@
 ---
 name: contextguard-report
-description: Show the local ContextGuard savings report with lifetime bytes, estimated tokens and reduction percentage. Invoke explicitly with $contextguard-report.
+description: Show the full local ContextGuard savings report including session cost and lifetime totals. Invoke explicitly with $contextguard-report.
 ---
 
 # ContextGuard Report

@@ -8,7 +8,13 @@ from .session_state import load_session_state, save_session_state
 from .utils import sha256_file
 
 
-COMMAND_MILESTONE = 12
+COMMAND_MILESTONE = 10
+INSPECT_ADVICE_AFTER_READS = 2
+EVIDENCE_ESCALATION_DIRECTIVE = (
+    "ContextGuard evidence escalation: compacted output already contains failures, locations, "
+    "and archived evidence. Do not re-read the same log, test output, or multi-file inspection. "
+    "Inspect or patch only the missing named file or symbol next."
+)
 
 
 def _command_key(command: str) -> str:
@@ -46,6 +52,18 @@ def _snapshot(root: Path, command: str) -> dict[str, str]:
         path.relative_to(root.resolve()).as_posix(): sha256_file(path)
         for path in _read_paths(root, command)
     }
+
+
+def parts_read_like(command: str) -> bool:
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return False
+    if not parts:
+        return False
+    if parts[0] == "cat" and len(parts) >= 2:
+        return True
+    return parts[0] == "sed" and len(parts) >= 4 and parts[1] == "-n"
 
 
 def _family(command: str) -> str:
@@ -86,6 +104,21 @@ def _emit_once(root: Path, state: dict, key: str, message: str, metric: str) -> 
     return message
 
 
+def _evidence_reuse_advice(root: Path, state: dict, command: str) -> str:
+    family = _family(command)
+    if family not in {"repository_check", "full_validation", "targeted_validation", "search"}:
+        return ""
+    if not state.get("evidence"):
+        return ""
+    return _emit_once(
+        root,
+        state,
+        f"evidence:{family}",
+        EVIDENCE_ESCALATION_DIRECTIVE,
+        "budget_advice_emitted",
+    )
+
+
 def analyze_command(root: Path, command: str) -> str:
     state = load_session_state(root)
     snapshot = _snapshot(root, command)
@@ -102,6 +135,16 @@ def analyze_command(root: Path, command: str) -> str:
 
     family = _family(command)
     family_count = sum(1 for item in state.get("commands", []) if item.get("family") == family)
+    read_count = len(state.get("reads", {}))
+    if read_count >= INSPECT_ADVICE_AFTER_READS and parts_read_like(command):
+        return _emit_once(
+            root,
+            state,
+            "budget:inspect_instead_of_reads",
+            "ContextGuard command budget: multiple direct reads already ran. "
+            "Use `contextguard inspect` for 1-4 named source files instead of more cat/sed reads.",
+            "budget_advice_emitted",
+        )
     if family == "repository_listing" and family_count >= 1:
         return _emit_once(
             root,
@@ -112,7 +155,7 @@ def analyze_command(root: Path, command: str) -> str:
             "budget_advice_emitted",
         )
     if family == "full_validation" and family_count >= 2:
-        return _emit_once(
+        advice = _emit_once(
             root,
             state,
             "budget:full_validation",
@@ -120,6 +163,8 @@ def analyze_command(root: Path, command: str) -> str:
             "Prefer targeted tests until the required final full validation.",
             "budget_advice_emitted",
         )
+        if advice:
+            return advice
     if family == "repository_check" and family_count >= 2:
         return _emit_once(
             root,
@@ -155,7 +200,7 @@ def analyze_completed_command(root: Path, command: str) -> str:
     family = _family(command)
     family_count = sum(1 for item in state.get("commands", []) if item.get("family") == family)
     if family == "full_validation" and family_count >= 2:
-        return _emit_once(
+        advice = _emit_once(
             root,
             state,
             "budget:full_validation",
@@ -163,7 +208,9 @@ def analyze_completed_command(root: Path, command: str) -> str:
             "Prefer targeted tests until another final full validation is genuinely required.",
             "budget_advice_emitted",
         )
-    return ""
+        if advice:
+            return advice
+    return _evidence_reuse_advice(root, state, command)
 
 
 def record_command(root: Path, command: str, *, succeeded: bool) -> None:

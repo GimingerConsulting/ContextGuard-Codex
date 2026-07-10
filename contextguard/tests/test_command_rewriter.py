@@ -1,21 +1,15 @@
 from pathlib import Path
 
-from contextguard.command_rewriter import rewrite_for_capture
+from contextguard.command_rewriter import rewrite_for_inspect
 
 
-def test_rewrite_quotes_shell_command():
-    rewritten = rewrite_for_capture("cat 'file with spaces.txt'")
+def test_rewrite_multi_source_cat_to_inspect(tmp_path: Path):
+    (tmp_path / "a.py").write_text("a=1\n", encoding="utf-8")
+    (tmp_path / "b.py").write_text("b=2\n", encoding="utf-8")
+
+    rewritten = rewrite_for_inspect("cat a.py b.py", tmp_path)
+
     assert rewritten is not None
-    assert "contextguard capture -- sh -c" in rewritten
-    assert "file with spaces.txt" in rewritten
-
-
-def test_no_rewrite_when_unsafe_or_small():
-    assert rewrite_for_capture("pwd") is None
-
-
-def test_rewrite_can_use_absolute_runner_with_spaces():
-    runner = Path("/tmp/path with spaces/contextguard")
-    rewritten = rewrite_for_capture("find .", runner)
-    assert rewritten is not None
-    assert "'/tmp/path with spaces/contextguard'" in rewritten
+    assert "inspect" in rewritten
+    assert "a.py" in rewritten
+    assert "b.py" in rewritten

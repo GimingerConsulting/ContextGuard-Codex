@@ -13,6 +13,15 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 PREVIOUS_CONTEXTGUARD_COMMAND_BASELINE = 34
 
 
+def rejection_reason(events_path: Path) -> str | None:
+    text = events_path.read_text(encoding="utf-8", errors="replace").lower()
+    if "usage limit" in text:
+        return "codex_usage_limit"
+    if "rate limit" in text:
+        return "codex_rate_limit"
+    return None
+
+
 def command_evidence(path: Path) -> dict[str, int]:
     commands = 0
     inspect_calls = 0
@@ -54,7 +63,15 @@ def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
 
     raw = results["raw"]
     optimized = results["contextguard"]
+    rejection_reasons = {
+        kind: rejection_reason(output_dir / kind / "events.jsonl") for kind in ("raw", "contextguard")
+    }
+    valid_run = all(
+        results[kind]["codex_exit_code"] == 0 and not rejection_reasons[kind]
+        for kind in ("raw", "contextguard")
+    )
     same_quality = all([
+        valid_run,
         raw["validation"]["exit_code"] == 0,
         optimized["validation"]["exit_code"] == 0,
         raw["validation"]["hidden_passed_tests"] == 144,
@@ -81,6 +98,8 @@ def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
         "previous_contextguard_command_baseline": PREVIOUS_CONTEXTGUARD_COMMAND_BASELINE,
         "same_quality": same_quality,
         "accepted": accepted,
+        "valid_run": valid_run,
+        "rejection_reasons": rejection_reasons,
         **results,
         "limitations": [
             "A single pair proves the command path and quality gate but remains subject to model stochasticity.",
@@ -107,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
     result = execute_ab(args.output_dir, timeout=args.timeout)
     print(json.dumps({
         "accepted": result["accepted"],
+        "valid_run": result["valid_run"],
+        "rejection_reasons": result["rejection_reasons"],
         "same_quality": result["same_quality"],
         "raw_commands": result["raw"]["command_evidence"]["command_executions"],
         "contextguard_commands": result["contextguard"]["command_evidence"]["command_executions"],

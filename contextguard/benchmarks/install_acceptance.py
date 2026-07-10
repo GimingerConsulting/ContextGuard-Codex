@@ -173,7 +173,7 @@ def evaluate_hooks(plugin: Path, project: Path, timing_samples: int) -> tuple[di
     raw_tokens = token_count(raw_output)
     visible_tokens = token_count(visible)
     automatic = {
-        "session_start": session == {},
+        "session_start": bool(session.get("hookSpecificOutput", {}).get("additionalContext")),
         "user_prompt_submit": bool(
             prompt.get("hookSpecificOutput", {}).get("additionalContext")
         ),

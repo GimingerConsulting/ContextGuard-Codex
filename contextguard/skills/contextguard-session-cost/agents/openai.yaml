@@ -1,0 +1,4 @@
+interface:
+  display_name: ContextGuard Session Cost
+  short_description: Show current-session ContextGuard savings estimates.
+  default_prompt: Show my ContextGuard session cost for this thread.

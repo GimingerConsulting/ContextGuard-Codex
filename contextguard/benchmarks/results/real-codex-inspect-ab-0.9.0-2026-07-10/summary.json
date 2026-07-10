@@ -1,0 +1,98 @@
+{
+  "accepted": false,
+  "benchmark": "real-codex-bounded-source-inspector-ab",
+  "contextguard": {
+    "cached_input_tokens": 0,
+    "capture_runner_used": false,
+    "codex_exit_code": 1,
+    "command_evidence": {
+      "command_executions": 0,
+      "inspect_calls": 0,
+      "successful_spawn_count": 0
+    },
+    "command_executions": 0,
+    "commands": [],
+    "diff_bytes": 282,
+    "elapsed_seconds": 10.985,
+    "exact_baseline_command": false,
+    "file_changes": 0,
+    "final_response": "",
+    "final_response_bytes": 0,
+    "input_tokens": 0,
+    "optimized": true,
+    "output_tokens": 0,
+    "reasoning_output_tokens": 0,
+    "repository_hash": "c0998ffbd6faefd6fb30af5ad18b9268a89a042fa968acbd487ae51557f6f472",
+    "stderr_bytes": 0,
+    "timed_out": false,
+    "tool_output_bytes": 0,
+    "uncached_input_tokens": 0,
+    "validation": {
+      "canonical_exit_code": 0,
+      "canonical_output": {
+        "ok": true,
+        "quantity": 3,
+        "remaining": -3,
+        "sku": "widget"
+      },
+      "changelog_updated": false,
+      "collected_tests": 147,
+      "concurrency_output": {},
+      "exit_code": 1,
+      "failed_tests": 144,
+      "hidden_failed_tests": 141,
+      "hidden_passed_tests": 3,
+      "passed_tests": 3
+    }
+  },
+  "limitations": [
+    "A single pair proves the command path and quality gate but remains subject to model stochasticity.",
+    "Codex subscription quota accounting is not exposed by the CLI."
+  ],
+  "previous_contextguard_command_baseline": 34,
+  "raw": {
+    "cached_input_tokens": 0,
+    "capture_runner_used": false,
+    "codex_exit_code": 1,
+    "command_evidence": {
+      "command_executions": 0,
+      "inspect_calls": 0,
+      "successful_spawn_count": 0
+    },
+    "command_executions": 0,
+    "commands": [],
+    "diff_bytes": 0,
+    "elapsed_seconds": 6.797,
+    "exact_baseline_command": false,
+    "file_changes": 0,
+    "final_response": "",
+    "final_response_bytes": 0,
+    "input_tokens": 0,
+    "optimized": false,
+    "output_tokens": 0,
+    "reasoning_output_tokens": 0,
+    "repository_hash": "808b1dce5ea54f22f9e0753b996686b6f183c8a682c84d55a891497d0cfdab3a",
+    "stderr_bytes": 0,
+    "timed_out": false,
+    "tool_output_bytes": 0,
+    "uncached_input_tokens": 0,
+    "validation": {
+      "canonical_exit_code": 0,
+      "canonical_output": {
+        "ok": true,
+        "quantity": 3,
+        "remaining": -3,
+        "sku": "widget"
+      },
+      "changelog_updated": false,
+      "collected_tests": 147,
+      "concurrency_output": {},
+      "exit_code": 1,
+      "failed_tests": 144,
+      "hidden_failed_tests": 141,
+      "hidden_passed_tests": 3,
+      "passed_tests": 3
+    }
+  },
+  "same_quality": false
+}

@@ -41,6 +41,17 @@ def test_risky_or_ambiguous_task_stays_with_parent(tmp_path: Path):
         assert result["reason"] in {"high_risk_task", "insufficient_scope_confidence"}
 
 
+def test_migration_file_in_scope_blocks_worker(tmp_path: Path):
+    result = route_task(
+        tmp_path,
+        "Implement the bounded fix for SUPPORT_TICKET.md.",
+        likely_files=["inventory/migration.py", "inventory/service.py"],
+        confidence="high",
+    )
+    assert result["eligible"] is False
+    assert result["reason"] == "high_risk_task"
+
+
 def test_router_directive_requires_parent_review_and_fallback(tmp_path: Path):
     result = route_task(
         tmp_path,

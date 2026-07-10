@@ -91,7 +91,7 @@ def test_command_milestone_advice_is_deduplicated(tmp_path: Path):
     first = analyze_command(tmp_path, "printf next")
     second = analyze_command(tmp_path, "printf next")
 
-    assert "12 commands" in first
+    assert "10 commands" in first
     assert second == ""
 
 

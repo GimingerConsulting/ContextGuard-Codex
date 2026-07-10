@@ -37,7 +37,7 @@ def test_checkpoint_is_versioned_and_allow_listed(tmp_path: Path):
         },
     )
 
-    assert checkpoint["version"] == 1
+    assert checkpoint["version"] == 2
     assert checkpoint["current_objective"] == "ship feature"
     assert "transcript" not in checkpoint
     assert checkpoint["checkpoint_id"]
@@ -52,4 +52,5 @@ def test_record_evidence_detects_repeated_fingerprint(tmp_path: Path):
         "repeated": True,
         "occurrences": 2,
         "first_summary_path": "/tmp/first.summary.json",
+        "locations": [],
     }

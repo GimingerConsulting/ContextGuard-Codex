@@ -1,0 +1,4 @@
+interface:
+  display_name: ContextGuard Lifetime Savings
+  short_description: Show all-session ContextGuard savings totals.
+  default_prompt: Show my ContextGuard lifetime savings.

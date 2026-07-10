@@ -9,7 +9,12 @@ from pathlib import Path
 from .config import state_dir
 
 
-STATE_VERSION = 1
+STATE_VERSION = 2
+MAX_COMMANDS = 200
+MAX_READS = 200
+MAX_EVIDENCE = 200
+MAX_ROUTING_EVENTS = 100
+MAX_LEDGER_EVENTS = 500
 CHECKPOINT_FIELDS = (
     "current_objective",
     "likely_relevant_files",
@@ -53,6 +58,17 @@ def _empty_state(checkpoint: dict | None = None) -> dict:
             "routed_workers_started": 0,
             "routed_workers_completed": 0,
         },
+        "routing_locked": False,
+        "routing_lock_reasons": [],
+        "host": "codex",
+        "ledger": {},
+        "ledger_totals": {
+            "bytes_added": 0,
+            "bytes_saved": 0,
+            "tokens_added": 0,
+            "tokens_saved": 0,
+        },
+        "ledger_events": [],
     }
 
 
@@ -70,6 +86,13 @@ def load_session_state(root: Path) -> dict:
 
 
 def save_session_state(root: Path, state: dict) -> Path:
+    state["commands"] = list(state.get("commands", []))[-MAX_COMMANDS:]
+    state["routing_events"] = list(state.get("routing_events", []))[-MAX_ROUTING_EVENTS:]
+    state["ledger_events"] = list(state.get("ledger_events", []))[-MAX_LEDGER_EVENTS:]
+    for key, limit in (("reads", MAX_READS), ("evidence", MAX_EVIDENCE)):
+        values = state.get(key, {})
+        if isinstance(values, dict) and len(values) > limit:
+            state[key] = dict(list(values.items())[-limit:])
     path = _session_path(root)
     _write_json(path, state)
     return path
@@ -107,24 +130,52 @@ def persist_checkpoint(root: Path, facts: dict) -> dict:
     return compact
 
 
-def record_evidence(root: Path, fingerprint: str, summary_path: str) -> dict:
+def record_evidence(
+    root: Path,
+    fingerprint: str,
+    summary_path: str,
+    *,
+    locations: list[str] | None = None,
+    failed_tests: list[str] | None = None,
+) -> dict:
     state = load_session_state(root)
     evidence = state.setdefault("evidence", {})
     existing = evidence.get(fingerprint)
     if existing:
         existing["occurrences"] = int(existing.get("occurrences", 1)) + 1
+        existing["last_summary_path"] = summary_path
+        if locations:
+            existing["locations"] = locations[:8]
+        if failed_tests:
+            existing["failed_tests"] = failed_tests[:8]
         save_session_state(root, state)
         return {
             "repeated": True,
             "occurrences": existing["occurrences"],
             "first_summary_path": existing["first_summary_path"],
+            "locations": existing.get("locations", []),
         }
     evidence[fingerprint] = {
         "occurrences": 1,
         "first_summary_path": summary_path,
+        "last_summary_path": summary_path,
+        "locations": (locations or [])[:8],
+        "failed_tests": (failed_tests or [])[:8],
     }
     save_session_state(root, state)
-    return {"repeated": False, "occurrences": 1, "first_summary_path": summary_path}
+    return {
+        "repeated": False,
+        "occurrences": 1,
+        "first_summary_path": summary_path,
+        "locations": evidence[fingerprint]["locations"],
+    }
+
+
+def set_routing_lock(root: Path, locked: bool, *, reasons: list[str] | None = None) -> None:
+    state = load_session_state(root)
+    state["routing_locked"] = locked
+    state["routing_lock_reasons"] = list(reasons or [])
+    save_session_state(root, state)
 
 
 def record_routing_event(root: Path, event: dict) -> None:

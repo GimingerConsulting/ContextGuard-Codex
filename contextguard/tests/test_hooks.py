@@ -98,12 +98,14 @@ def test_session_start_preserves_existing_project_content(tmp_path: Path):
     assert "BEGIN CONTEXTGUARD MANAGED SECTION" in agents.read_text()
 
 
-def test_session_start_initialized_is_silent(tmp_path: Path):
+def test_session_start_initialized_injects_session_gate(tmp_path: Path):
     state = tmp_path / ".contextguard"
     state.mkdir()
     (state / "manifest.json").write_text("{}")
     result = run_hook("session_start.py", {}, tmp_path)
-    assert result == {}
+    context = result["hookSpecificOutput"]["additionalContext"]
+    assert "session gate" in context.lower()
+    assert "capture" in context
 
 
 def test_session_start_resets_transient_optimization_state(tmp_path: Path):
@@ -226,11 +228,11 @@ def test_pre_compact_persists_compact_session_facts(tmp_path: Path):
     assert "finish policy" in capsule
     assert "transcript" not in capsule
     checkpoint = json.loads(capsule)
-    assert checkpoint["version"] == 1
+    assert checkpoint["version"] == 2
     assert checkpoint["checkpoint_id"]
 
 
-def test_pre_tool_use_adds_non_blocking_repeated_read_advice(tmp_path: Path):
+def test_pre_tool_use_denies_repeated_unchanged_read(tmp_path: Path):
     state = tmp_path / ".contextguard"
     state.mkdir()
     (state / "manifest.json").write_text("{}")
@@ -245,9 +247,8 @@ def test_pre_tool_use_adds_non_blocking_repeated_read_advice(tmp_path: Path):
     )
 
     output = result["hookSpecificOutput"]
-    assert output["permissionDecision"] == "allow"
-    assert "unchanged" in output["additionalContext"].lower()
-    assert "updatedInput" in output
+    assert output["permissionDecision"] == "deny"
+    assert "repeated_unchanged_read" in output["permissionDecisionReason"]
 
 
 def test_post_tool_use_records_successful_command_for_budget(tmp_path: Path):
@@ -316,6 +317,52 @@ def test_user_prompt_does_not_route_security_migration(tmp_path: Path):
 
     context = result["hookSpecificOutput"]["additionalContext"]
     assert "contextguard-worker" not in context
+
+
+def test_subagent_start_denies_worker_when_routing_locked(tmp_path: Path):
+    state = tmp_path / ".contextguard"
+    state.mkdir()
+    (state / "manifest.json").write_text("{}")
+    reset_session_state(tmp_path)
+    session = load_session_state(tmp_path)
+    session["routing_locked"] = True
+    session["routing_lock_reasons"] = ["migration"]
+    save_session_state(tmp_path, session)
+
+    result = run_hook(
+        "subagent_start.py",
+        {"agent_type": "contextguard-worker", "model": "gpt-5.4-mini", "thread_id": "worker-1"},
+        tmp_path,
+    )
+
+    output = result["hookSpecificOutput"]
+    assert output["permissionDecision"] == "deny"
+    assert "routing lock" in output["permissionDecisionReason"].lower()
+    assert "Do not spawn any subagent" in output["additionalContext"]
+
+
+def test_pre_compact_injects_archive_context_when_captures_exist(tmp_path: Path):
+    from contextguard.history_pack import record_archive_metadata
+
+    state = tmp_path / ".contextguard"
+    state.mkdir()
+    (state / "manifest.json").write_text("{}")
+    record_archive_metadata(
+        tmp_path,
+        archive_path="/tmp/summary.json",
+        fingerprint="fp-1",
+        raw_bytes=4000,
+    )
+
+    result = run_hook(
+        "pre_compact.py",
+        {"current_objective": "finish policy", "changed_files": ["a.py"]},
+        tmp_path,
+    )
+
+    context = result["hookSpecificOutput"]["additionalContext"]
+    assert "archive index" in context
+    assert "1 captures" in context
 
 
 def test_subagent_hooks_record_actual_routing_lifecycle(tmp_path: Path):

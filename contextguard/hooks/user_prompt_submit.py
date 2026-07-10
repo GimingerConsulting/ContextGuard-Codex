@@ -4,9 +4,13 @@ from __future__ import annotations
 from _bootstrap import read_event, write_event
 from contextguard.config import state_dir
 from contextguard.context_capsule import build_capsule, build_session_capsule
+from contextguard.cross_session import render_cross_session_brief
 from contextguard.database import connect, increment
 from contextguard.model_router import route_task
 from contextguard.project import detect_project
+from contextguard.project_context import load_project_context
+from contextguard.risk_assessment import render_no_delegation_directive
+from contextguard.session_state import load_session_state
 from contextguard.task_classifier import classify_task
 
 
@@ -15,14 +19,29 @@ prompt = event.get("prompt") or event.get("user_prompt") or ""
 info = detect_project()
 if (state_dir(info.root) / "manifest.json").exists() and prompt:
     classification = classify_task(info.root, prompt)
+    supplemental = load_project_context(info.root, likely_files=classification["likely_files"])
     routing = route_task(
         info.root,
         prompt,
         likely_files=classification["likely_files"],
         confidence=classification["confidence"],
+        supplemental_text=supplemental,
     )
-    parts = [part for part in (build_session_capsule(info.root), build_capsule(info.root, prompt, token_limit=300)) if part]
-    if routing["eligible"]:
+    session = load_session_state(info.root)
+    parts = [
+        part
+        for part in (
+            render_cross_session_brief(info.root, token_limit=200),
+            build_session_capsule(info.root),
+            build_capsule(info.root, prompt, token_limit=300),
+        )
+        if part
+    ]
+    if session.get("routing_locked"):
+        parts.append(render_no_delegation_directive({"locked": True, "reasons": session.get("routing_lock_reasons", [])}))
+    elif routing["eligible"]:
+        parts.append(str(routing["directive"]))
+    elif routing.get("directive"):
         parts.append(str(routing["directive"]))
     context = "\n".join(parts)
     conn = connect(state_dir(info.root) / "index.sqlite")

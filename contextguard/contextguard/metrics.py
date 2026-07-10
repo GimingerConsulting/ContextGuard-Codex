@@ -4,6 +4,11 @@ from pathlib import Path
 
 from .config import database_path
 from .database import connect
+from .history_pack import archive_index_summary
+from .ledger import ledger_summary
+from .quota_proxy import quota_proxy_report
+from .lifetime_savings import lifetime_savings_report
+from .session_cost import session_cost_report
 
 
 def report(root: Path) -> dict:
@@ -43,4 +48,9 @@ def report(root: Path) -> dict:
         "managed_policy_bytes": policy_bytes,
         "injected_capsule_bytes": capsule_bytes,
         "net_estimated_reduction_tokens": max(0, saved_bytes // 4 - estimated_overhead // 4),
+        "ledger": ledger_summary(root),
+        "archive_index": archive_index_summary(root),
+        "quota_proxy": quota_proxy_report(root),
+        "session_cost": session_cost_report(root),
+        "lifetime_savings": lifetime_savings_report(root),
     }

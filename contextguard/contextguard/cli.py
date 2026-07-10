@@ -20,6 +20,17 @@ from .repo_map import detect_repo_facts
 from .session_state import load_session_state
 from .database import connect, increment
 from .source_inspector import InspectionError, inspect_sources
+from .context_brief import build_context_brief, expand_context, write_context_map
+from .session_gate import build_session_gate
+from .evidence_expand import expand_from_evidence, list_evidence_entries, write_evidence_index
+from .host_adapter import render_codex_note
+from .host_policy import render_host_enforcement_note
+from .history_pack import archive_index_summary
+from .lifetime_savings import lifetime_savings_report
+from .quota_proxy import quota_proxy_report
+from .cross_session import load_cross_session_summary, render_cross_session_brief
+from .session_cost import session_cost_report
+from .ledger import ledger_summary
 
 
 def init_project(args: argparse.Namespace) -> int:
@@ -75,6 +86,34 @@ def status(args: argparse.Namespace) -> int:
         print(f"Session commands tracked: {len(session.get('commands', []))}")
         print(f"Repeated reads detected: {session_metrics.get('repeated_reads_detected', 0)}")
         print(f"Command budget advice emitted: {session_metrics.get('budget_advice_emitted', 0)}")
+        print(f"Routing locked: {session.get('routing_locked', False)}")
+        ledger = ledger_summary(info.root)
+        print(f"Ledger events: {sum(ledger.get('counts', {}).values())}")
+        hooks = observed_hooks(info.root)
+        print(render_codex_note())
+        print(render_host_enforcement_note(hooks_observed=hook_status(hooks) == "observed"))
+        session_cost_data = metrics.get("session_cost") or {}
+        print(
+            "Session net tokens saved (estimate): "
+            f"{session_cost_data.get('session_net_tokens_saved_estimate', 0)}"
+        )
+        print(
+            "Session API savings (estimate): "
+            f"${session_cost_data.get('estimated_session_api_savings_usd', 0)}"
+        )
+        lifetime = metrics.get("lifetime_savings") or {}
+        print(f"Lifetime sessions: {lifetime.get('lifetime_sessions', 0)}")
+        print(
+            "Lifetime net tokens saved (estimate): "
+            f"{lifetime.get('lifetime_combined_net_tokens_saved_estimate', 0)}"
+        )
+        print(
+            "Lifetime API savings (estimate): "
+            f"${lifetime.get('estimated_lifetime_api_savings_usd', 0)}"
+        )
+        evidence_entries = list_evidence_entries(info.root)
+        if evidence_entries:
+            print(f"Evidence entries: {len(evidence_entries)}")
     hooks = observed_hooks(info.root) if initialized else {}
     print(f"Hook status: {hook_status(hooks)}")
     if hooks:
@@ -108,13 +147,30 @@ def refresh(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_metric_block(title: str, data: dict[str, object]) -> None:
+    print(title)
+    for key, value in data.items():
+        suffix = " (estimate)" if "tokens" in key else ""
+        print(f"{key}: {value}{suffix}")
+
+
 def report(args: argparse.Namespace) -> int:
     info = detect_project(Path(args.path).resolve() if args.path else None)
     data = metrics_report(info.root)
     print("ContextGuard savings report")
     for key, value in data.items():
+        if key in {"session_cost", "lifetime_savings", "ledger", "archive_index", "quota_proxy"}:
+            continue
         suffix = " (estimate)" if "tokens" in key else ""
         print(f"{key}: {value}{suffix}")
+    session_cost_data = data.get("session_cost")
+    if isinstance(session_cost_data, dict):
+        print()
+        _print_metric_block("Session cost (current session):", session_cost_data)
+    lifetime = data.get("lifetime_savings")
+    if isinstance(lifetime, dict):
+        print()
+        _print_metric_block("Lifetime savings (all sessions):", lifetime)
     return 0
 
 
@@ -152,6 +208,76 @@ def large_file(args: argparse.Namespace) -> int:
     return 0
 
 
+def gate(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    text = build_session_gate(info.root, include_surface=not args.no_surface)
+    print(text)
+    return 0
+
+
+def brief(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    text, context_map = build_context_brief(info.root, budget_tokens=args.budget)
+    write_context_map(info.root, context_map)
+    print(text)
+    return 0
+
+
+def expand(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    data = expand_context(info.root, args.file, expected_sha=args.sha)
+    print(json.dumps(data if not data.get("ok") else {key: data[key] for key in data if key != "content"}, indent=2))
+    if data.get("ok") and args.show_content:
+        print(data["content"])
+    return 0 if data.get("ok") else 2
+
+
+def session_cost(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    data = session_cost_report(info.root)
+    _print_metric_block("ContextGuard session cost (current session):", data)
+    return 0
+
+
+def lifetime_savings(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    data = lifetime_savings_report(info.root)
+    _print_metric_block("ContextGuard lifetime savings (all sessions):", data)
+    return 0
+
+
+def quota_proxy(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    data = quota_proxy_report(info.root)
+    _print_metric_block("ContextGuard quota proxy (API-cost estimate):", data)
+    return 0
+
+
+def archive_index(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    data = archive_index_summary(info.root)
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def cross_session(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    if args.json:
+        print(json.dumps(load_cross_session_summary(info.root), indent=2))
+    else:
+        text = render_cross_session_brief(info.root, token_limit=args.limit)
+        print(text or "No prior-session summary stored yet.")
+    return 0
+
+
+def expand_evidence(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    data = expand_from_evidence(info.root, args.fingerprint)
+    print(json.dumps(data, indent=2, default=str))
+    write_evidence_index(info.root)
+    return 0 if data.get("ok") else 2
+
+
 def inspect(args: argparse.Namespace) -> int:
     try:
         data = inspect_sources(
@@ -169,7 +295,11 @@ def inspect(args: argparse.Namespace) -> int:
         }
         print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
         return 2
-    print(json.dumps(data, separators=(",", ":"), sort_keys=True))
+    from .ledger import record_ledger
+
+    rendered = json.dumps(data, separators=(",", ":"), sort_keys=True)
+    record_ledger(Path.cwd(), "inspect", bytes_added=len(rendered.encode()), label=",".join(args.files[:4]))
+    print(rendered)
     return 0
 
 
@@ -201,6 +331,41 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--records")
     p.add_argument("--limit", type=int, default=10)
     p.set_defaults(func=large_file)
+    p = sub.add_parser("gate")
+    p.add_argument("--path")
+    p.add_argument("--no-surface", action="store_true")
+    p.set_defaults(func=gate)
+    p = sub.add_parser("brief")
+    p.add_argument("--path")
+    p.add_argument("--budget", type=int, default=800)
+    p.set_defaults(func=brief)
+    p = sub.add_parser("expand")
+    p.add_argument("file")
+    p.add_argument("--path")
+    p.add_argument("--sha")
+    p.add_argument("--show-content", action="store_true")
+    p.set_defaults(func=expand)
+    p = sub.add_parser("session-cost")
+    p.add_argument("--path")
+    p.set_defaults(func=session_cost)
+    p = sub.add_parser("lifetime-savings")
+    p.add_argument("--path")
+    p.set_defaults(func=lifetime_savings)
+    p = sub.add_parser("quota-proxy")
+    p.add_argument("--path")
+    p.set_defaults(func=quota_proxy)
+    p = sub.add_parser("archive-index")
+    p.add_argument("--path")
+    p.set_defaults(func=archive_index)
+    p = sub.add_parser("cross-session")
+    p.add_argument("--path")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--limit", type=int, default=400)
+    p.set_defaults(func=cross_session)
+    p = sub.add_parser("expand-evidence")
+    p.add_argument("fingerprint")
+    p.add_argument("--path")
+    p.set_defaults(func=expand_evidence)
     p = sub.add_parser("inspect")
     p.add_argument("files", nargs="+")
     p.add_argument("--symbol")

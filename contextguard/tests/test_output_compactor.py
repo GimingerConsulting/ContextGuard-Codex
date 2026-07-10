@@ -80,3 +80,24 @@ def test_passing_test_evidence_discourages_redundant_validation():
 
     assert compact["evidence"]["outcome"] == "passed"
     assert compact["next_action"] == "Reuse this passing result until relevant code changes."
+
+
+def test_zero_failed_test_summary_is_passing():
+    compact = compact_output("0 failed, 12 passed in 0.30s\n")
+
+    assert compact["evidence"]["outcome"] == "passed"
+
+
+def test_git_diff_content_is_not_classified_as_failure():
+    output = """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-raise RuntimeError('failed')
++return 'fixed error'
+"""
+    compact = compact_output(output, command="git diff -- app.py")
+
+    assert compact["errors"] == []
+    assert compact["evidence"]["outcome"] == "unknown"
+    assert compact["signal_lines"][0].startswith("diff --git")

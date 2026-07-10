@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from benchmarks.real_codex_inspect_ab import command_evidence
+from benchmarks.real_codex_inspect_ab import command_evidence, rejection_reason
 
 
 def test_command_evidence_counts_completed_commands_and_inspect_usage(tmp_path: Path):
@@ -17,3 +17,10 @@ def test_command_evidence_counts_completed_commands_and_inspect_usage(tmp_path: 
     evidence = command_evidence(path)
 
     assert evidence == {"command_executions": 2, "inspect_calls": 1, "successful_spawn_count": 1}
+
+
+def test_rejection_reason_marks_usage_limited_run_invalid(tmp_path: Path):
+    path = tmp_path / "events.jsonl"
+    path.write_text('{"type":"error","message":"You have hit your usage limit"}\n', encoding="utf-8")
+
+    assert rejection_reason(path) == "codex_usage_limit"

@@ -42,6 +42,15 @@ def test_inspect_sources_returns_stable_compact_payload(tmp_path: Path) -> None:
     assert "\n" not in compact
 
 
+def test_inspect_sources_supports_one_file(tmp_path: Path) -> None:
+    source = write_source(tmp_path, "src/only.py", "def only():\n    return 1\n")
+
+    result = inspect_sources(tmp_path, [source])
+
+    assert result["file_count"] == 1
+    assert result["files"][0]["path"] == "src/only.py"
+
+
 def test_inspect_sources_supports_symbol_window_in_one_file_and_context_in_companion(tmp_path: Path) -> None:
     root = tmp_path
     source = write_source(
@@ -77,6 +86,21 @@ def test_inspect_sources_reads_bounded_window_from_large_source(tmp_path: Path) 
     assert result["files"][0]["source_line_count"] == 252
     assert result["files"][0]["line_count"] <= 20
     assert "def target" in result["files"][0]["content"]
+
+
+def test_inspect_sources_range_reads_large_file_with_bounded_result(tmp_path: Path) -> None:
+    large = write_source(
+        tmp_path,
+        "src/huge.py",
+        "".join(f"VALUE_{index} = {index}\n" for index in range(20_000)),
+    )
+
+    result = inspect_sources(tmp_path, [large], start_line=10_000, end_line=10_020)
+
+    entry = result["files"][0]
+    assert entry["source_bytes"] > MAX_FILE_BYTES
+    assert entry["line_count"] == 21
+    assert "VALUE_9999" in entry["content"]
 
 
 def test_inspect_sources_reports_missing_file_as_structured_error(tmp_path: Path) -> None:

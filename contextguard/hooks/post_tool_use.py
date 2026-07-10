@@ -7,7 +7,10 @@ from datetime import datetime, timezone
 from _bootstrap import read_event, write_event
 from contextguard.config import state_dir
 from contextguard.hook_diagnostics import record_hook
+from contextguard.evidence_expand import build_evidence_expand_directive
 from contextguard.optimization_advisor import record_command
+from contextguard.adaptive_capture import should_compact as adaptive_should_compact
+from contextguard.history_pack import record_archive_metadata
 from contextguard.output_compactor import compact_output, finalize_evidence
 from contextguard.output_capture import NOISY_MEDIUM_BYTES, SMALL_PASSTHROUGH_BYTES
 from contextguard.project import detect_project
@@ -31,7 +34,17 @@ is_noisy_medium = (
     raw_bytes >= NOISY_MEDIUM_BYTES
     and (bool(compact.get("errors")) or int(compact.get("line_count", 0)) > 50)
 )
-if isinstance(output, str) and (raw_bytes > SMALL_PASSTHROUGH_BYTES or is_noisy_medium):
+should_compact = (
+    raw_bytes > SMALL_PASSTHROUGH_BYTES
+    or is_noisy_medium
+    or adaptive_should_compact(
+        raw_bytes,
+        info.root,
+        has_errors=bool(compact.get("errors")),
+        line_count=int(compact.get("line_count", 0)),
+    )
+)
+if isinstance(output, str) and should_compact:
     tmp = state_dir(info.root) / "tmp"
     tmp.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
@@ -42,12 +55,22 @@ if isinstance(output, str) and (raw_bytes > SMALL_PASSTHROUGH_BYTES or is_noisy_
     compact["exit_code"] = exit_code
     finalize_evidence(compact)
     compact["full_output_path"] = output_path.as_posix()
+    evidence_block = compact.get("evidence") or {}
     compact["repeated_evidence"] = record_evidence(
         info.root,
         compact["evidence_fingerprint"],
         summary_path.as_posix(),
+        locations=list(evidence_block.get("locations") or []),
+        failed_tests=list(evidence_block.get("failed_tests") or []),
     )
+    compact["expand_directive"] = build_evidence_expand_directive(info.root, compact["evidence_fingerprint"])
     summary_path.write_text(json.dumps(compact, indent=2) + "\n", encoding="utf-8")
+    record_archive_metadata(
+        info.root,
+        archive_path=summary_path.as_posix(),
+        fingerprint=compact["evidence_fingerprint"],
+        raw_bytes=raw_bytes,
+    )
     repeated = compact["repeated_evidence"]
     if repeated["repeated"]:
         feedback = (
@@ -71,6 +94,7 @@ if isinstance(output, str) and (raw_bytes > SMALL_PASSTHROUGH_BYTES or is_noisy_
             + "\n".join(compact["errors"] + compact["warnings"])
             + (f"\nstack_trace:\n{compact['stack_traces'][0]}" if compact.get("stack_traces") else "")
             + (f"\nescalation: {escalation['reason']}" if escalation.get("required") else "")
+            + (f"\n{compact['expand_directive']}" if compact.get("expand_directive") else "")
             + f"\nfull_output: {display_output_path}"
         )
     metrics_path = tmp / "hook-output-metrics.jsonl"

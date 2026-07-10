@@ -3,16 +3,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .risk_assessment import assess_risk, render_no_delegation_directive
+from .session_state import set_routing_lock
+
 
 WORKER_AGENT = "contextguard-worker"
 WORKER_MODEL = "gpt-5.4-mini"
-
-HIGH_RISK_TERMS = {
-    "auth", "authentication", "authorization", "concurrency", "concurrent",
-    "credential", "data loss", "database migration", "destructive", "incident",
-    "migration", "payment", "permission", "production", "race condition",
-    "schema", "secret", "security", "transaction",
-}
 
 IMPLEMENTATION_TERMS = {
     "add", "build", "change", "fix", "implement", "refactor", "support", "update",
@@ -30,18 +26,27 @@ def route_task(
     *,
     likely_files: list[str],
     confidence: str,
+    supplemental_text: str = "",
 ) -> dict[str, object]:
-    del root
     words = re.findall(r"[A-Za-z0-9_.-]+", prompt)
+    assessment = assess_risk(prompt, likely_files=likely_files, supplemental_text=supplemental_text)
     base = {
         "agent": WORKER_AGENT,
         "model": WORKER_MODEL,
         "reasoning_effort": "medium",
         "max_workers": 1,
         "parent_responsibilities": ["planning", "risk decisions", "diff review", "final validation"],
+        "risk": assessment,
     }
-    if _contains_term(prompt, HIGH_RISK_TERMS):
-        return {**base, "eligible": False, "reason": "high_risk_task", "directive": ""}
+    if assessment["locked"]:
+        set_routing_lock(root, True, reasons=list(assessment.get("reasons", [])))
+        return {
+            **base,
+            "eligible": False,
+            "reason": "high_risk_task",
+            "directive": render_no_delegation_directive(assessment),
+        }
+    set_routing_lock(root, False, reasons=[])
     if len(words) <= 5 and len(likely_files) <= 1:
         return {
             **base,

@@ -205,6 +205,46 @@ def test_report_shows_visible_lifetime_savings(tmp_path: Path):
     assert result.returncode == 0
     assert "estimated_tokens_saved:" in result.stdout
     assert "estimated_reduction_percent:" in result.stdout
+    assert "Lifetime savings (all sessions):" in result.stdout
+
+
+def test_quota_proxy_and_archive_index_commands(tmp_path: Path):
+    run_cli(["init"], tmp_path)
+    run_cli(
+        [
+            "capture",
+            "--",
+            sys.executable,
+            "-c",
+            "for i in range(30): print('ERROR repeated failure line', i)",
+        ],
+        tmp_path,
+    )
+    quota = run_cli(["quota-proxy"], tmp_path)
+    archive = run_cli(["archive-index"], tmp_path)
+    assert quota.returncode == 0
+    assert "pricing_model:" in quota.stdout
+    assert archive.returncode == 0
+    assert '"entries"' in archive.stdout
+
+
+def test_lifetime_savings_command_shows_aggregate_totals(tmp_path: Path):
+    run_cli(["init"], tmp_path)
+    run_cli(
+        [
+            "capture",
+            "--",
+            sys.executable,
+            "-c",
+            "for i in range(40): print('ERROR repeated failure line', i)",
+        ],
+        tmp_path,
+    )
+    result = run_cli(["lifetime-savings"], tmp_path)
+    assert result.returncode == 0
+    assert "lifetime_sessions:" in result.stdout
+    assert "lifetime_combined_net_tokens_saved_estimate:" in result.stdout
+    assert "estimated_lifetime_api_savings_usd:" in result.stdout
 
 
 def test_uninstall_requires_confirmation(tmp_path: Path):
