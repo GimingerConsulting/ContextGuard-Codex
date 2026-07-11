@@ -11,6 +11,8 @@ from benchmarks.real_codex_support_ab import _run_one
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 PREVIOUS_CONTEXTGUARD_COMMAND_BASELINE = 34
+MIN_UNCACHED_INPUT_REDUCTION_PERCENT = 5.0
+MIN_TOOL_OUTPUT_REDUCTION_PERCENT = 10.0
 
 
 def rejection_reason(events_path: Path) -> str | None:
@@ -20,6 +22,29 @@ def rejection_reason(events_path: Path) -> str | None:
     if "rate limit" in text:
         return "codex_rate_limit"
     return None
+
+
+def reduction_percent(raw: int | float, optimized: int | float) -> float | None:
+    if raw <= 0:
+        return None
+    return round((raw - optimized) * 100.0 / raw, 2)
+
+
+def paired_efficiency(raw: dict, optimized: dict) -> dict[str, object]:
+    raw_commands = raw["command_evidence"]["command_executions"]
+    optimized_commands = optimized["command_evidence"]["command_executions"]
+    uncached_reduction = reduction_percent(raw["uncached_input_tokens"], optimized["uncached_input_tokens"])
+    tool_reduction = reduction_percent(raw["tool_output_bytes"], optimized["tool_output_bytes"])
+    return {
+        "uncached_input_reduction_percent": uncached_reduction,
+        "tool_output_reduction_percent": tool_reduction,
+        "command_reduction_percent": reduction_percent(raw_commands, optimized_commands),
+        "commands_below_paired_raw": optimized_commands < raw_commands,
+        "meets_uncached_input_threshold": uncached_reduction is not None
+        and uncached_reduction >= MIN_UNCACHED_INPUT_REDUCTION_PERCENT,
+        "meets_tool_output_threshold": tool_reduction is not None
+        and tool_reduction >= MIN_TOOL_OUTPUT_REDUCTION_PERCENT,
+    }
 
 
 def command_evidence(path: Path) -> dict[str, int]:
@@ -86,12 +111,14 @@ def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
         raw["validation"]["concurrency_output"] == optimized["validation"]["concurrency_output"],
     ])
     evidence = optimized["command_evidence"]
+    efficiency = paired_efficiency(raw, optimized)
     accepted = all([
         same_quality,
         evidence["inspect_calls"] >= 1,
         evidence["successful_spawn_count"] == 0,
-        evidence["command_executions"] < PREVIOUS_CONTEXTGUARD_COMMAND_BASELINE,
-        optimized["tool_output_bytes"] <= raw["tool_output_bytes"],
+        efficiency["commands_below_paired_raw"],
+        efficiency["meets_uncached_input_threshold"],
+        efficiency["meets_tool_output_threshold"],
     ])
     result = {
         "benchmark": "real-codex-bounded-source-inspector-ab",
@@ -100,9 +127,11 @@ def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
         "accepted": accepted,
         "valid_run": valid_run,
         "rejection_reasons": rejection_reasons,
+        "paired_efficiency": efficiency,
         **results,
         "limitations": [
             "A single pair proves the command path and quality gate but remains subject to model stochasticity.",
+            "The arms run RAW then ContextGuard; repeated counterbalanced pairs are needed for population-level claims.",
             "Codex subscription quota accounting is not exposed by the CLI.",
         ],
     }
@@ -128,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
         "accepted": result["accepted"],
         "valid_run": result["valid_run"],
         "rejection_reasons": result["rejection_reasons"],
+        "paired_efficiency": result["paired_efficiency"],
         "same_quality": result["same_quality"],
         "raw_commands": result["raw"]["command_evidence"]["command_executions"],
         "contextguard_commands": result["contextguard"]["command_evidence"]["command_executions"],
