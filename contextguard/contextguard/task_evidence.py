@@ -11,13 +11,23 @@ from .utils import estimate_tokens, safe_relpath, sha256_file
 TEXT_SUFFIXES = {".md", ".txt", ".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs", ".java"}
 STRUCTURED_SUFFIXES = {".csv", ".json", ".jsonl", ".log", ".tsv"}
 MAX_SCAN_BYTES = 256_000
+EVIDENCE_STOP_TERMS = STOP_TERMS | {
+    "available",
+    "before",
+    "contextguard",
+    "exactly",
+    "investigate",
+    "normal",
+    "optimize",
+    "please",
+}
 
 
 def _query_terms(prompt: str) -> set[str]:
     return {
         token.lower()
         for token in re.findall(r"[A-Za-z_][A-Za-z0-9_.-]{3,}", prompt)
-        if token.lower() not in STOP_TERMS and len(token) >= 5
+        if token.lower() not in EVIDENCE_STOP_TERMS and len(token) >= 5
     }
 
 

@@ -7,7 +7,7 @@
 - Removed duplicate cross-session/checkpoint injection from every UserPromptSubmit and moved dynamic session state behind a stable cache-friendly prefix.
 - Compacted routing directives and made high-risk routing decisions final so agents do not spend commands inspecting worker configuration.
 - Added `contextguard orient --query ...` for an explicit task evidence packet.
-- Added a deterministic mechanism benchmark showing the packet plus structured evidence at 2,235 visible bytes versus 8,590 bytes in the prior live orientation phase, a 73.98% reduction. A post-change live Codex rerun was quota-rejected at zero tokens and is not treated as evidence.
+- Added a deterministic mechanism benchmark showing the packet plus structured evidence at 1,983 visible bytes versus 8,590 bytes in the prior live orientation phase, a 76.92% reduction. A post-change live Codex rerun was quota-rejected at zero tokens and is not treated as evidence.
 
 ## 0.4.1
 
