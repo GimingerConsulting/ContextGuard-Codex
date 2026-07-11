@@ -118,7 +118,6 @@ def test_inspect_sources_reports_missing_file_as_structured_error(tmp_path: Path
         ("../outside.py", "path_escape"),
         ("src/dir", "directory"),
         ("build/output.log", "unsafe_file"),
-        ("data/payload.json", "unsafe_file"),
     ],
 )
 def test_inspect_sources_rejects_unsafe_paths(tmp_path: Path, relative: str, expected_code: str) -> None:
@@ -142,6 +141,33 @@ def test_inspect_sources_rejects_unsafe_paths(tmp_path: Path, relative: str, exp
         inspect_sources(root, [safe, target])
 
     assert excinfo.value.code == expected_code
+
+
+def test_inspect_sources_summarizes_structured_files_without_raw_values(tmp_path: Path) -> None:
+    log = write_source(
+        tmp_path,
+        "data/production.log",
+        "INFO request id=123 status=200\nERROR database password=super-secret status=500\n",
+    )
+    jsonl = write_source(
+        tmp_path,
+        "data/events.jsonl",
+        '{"event":"created","token":"hidden-value"}\n{"event":"updated","token":"other"}\n',
+    )
+    payload = write_source(tmp_path, "data/scenario.json", '{"sku":"ABC","secret":"do-not-show"}\n')
+    csv = write_source(tmp_path, "data/export.csv", "name,credential\nAlice,private-value\n")
+
+    result = inspect_sources(tmp_path, [log, jsonl, payload, csv])
+
+    assert result["file_count"] == 4
+    assert all(item["selection"]["mode"] == "structured_summary" for item in result["files"])
+    rendered = json.dumps(result)
+    assert "observed_keys" in rendered
+    assert "severity_counts" in rendered
+    assert "super-secret" not in rendered
+    assert "hidden-value" not in rendered
+    assert "do-not-show" not in rendered
+    assert "private-value" not in rendered
 
 
 def test_inspect_sources_rejects_symlink_escape(tmp_path: Path) -> None:

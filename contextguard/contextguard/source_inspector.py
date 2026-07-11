@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from collections import deque
 from pathlib import Path
 from typing import Iterable
 
 from .utils import is_binary, safe_relpath
+from .large_file import summarize_large_file
 
 MIN_FILES = 1
 MAX_FILES = 4
@@ -56,6 +58,8 @@ _UNSAFE_SUFFIXES = {
     ".yml",
     ".zip",
 }
+_STRUCTURED_SUFFIXES = {".csv", ".json", ".jsonl", ".log", ".tsv"}
+_ALWAYS_UNSAFE_DIRS = {".git", ".contextguard", ".venv", "__pycache__", "build", "dist", "generated", "tmp", "temp"}
 
 
 class InspectionError(ValueError):
@@ -89,6 +93,45 @@ def _is_unsafe_source(path: Path) -> bool:
     if path.name.startswith(".") and path.suffix.lower() not in {".py", ".sh"}:
         return True
     return False
+
+
+def _structured_allowed(path: Path) -> bool:
+    return path.suffix.lower() in _STRUCTURED_SUFFIXES and not ({part.lower() for part in path.parts} & _ALWAYS_UNSAFE_DIRS)
+
+
+def _file_stats(path: Path) -> tuple[str, int, int]:
+    hasher = hashlib.sha256()
+    line_count = 0
+    size = 0
+    with path.open("rb") as handle:
+        for raw_line in handle:
+            size += len(raw_line)
+            if size > MAX_SCAN_BYTES:
+                _raise("file_too_large", f"file exceeds scan limit: {path}")
+            hasher.update(raw_line)
+            line_count += 1
+    return hasher.hexdigest(), line_count, size
+
+
+def _structured_summary(path: Path, root: Path) -> tuple[str, str, int, int]:
+    fingerprint, line_count, source_bytes = _file_stats(path)
+    result = summarize_large_file(path, limit=2)
+    suffix = path.suffix.lower()
+    allowed = {
+        ".json": ("size", "top_level_type", "keys", "sample", "records", "sample_types", "observed_keys"),
+        ".jsonl": ("records", "invalid_records", "observed_keys"),
+        ".csv": ("records", "columns", "null_counts"),
+        ".tsv": ("records", "columns", "null_counts"),
+        ".log": ("size", "line_count", "severity_counts", "error_signatures"),
+    }[suffix]
+    payload = {key: result[key] for key in allowed if key in result}
+    if "error_signatures" in payload:
+        payload["error_signatures"] = [str(item)[:180] for item in payload["error_signatures"][:2]]
+    content = "mode=structured_summary;" + ";".join(
+        f"{key}={json.dumps(value, separators=(',', ':'), sort_keys=True)}"
+        for key, value in payload.items()
+    )
+    return content, fingerprint, line_count, source_bytes
 
 
 def _select_window(lines: list[str], symbol: str | None, start_line: int | None, end_line: int | None) -> tuple[int, int]:
@@ -221,24 +264,33 @@ def inspect_sources(
             _raise("directory", f"directory is not a source file: {candidate}")
         if resolved.is_symlink():
             _raise("path_escape", f"symlink escapes project root: {candidate}")
-        if _is_unsafe_source(resolved):
+        structured = _structured_allowed(resolved)
+        if _is_unsafe_source(resolved) and not structured:
             _raise("unsafe_file", f"unsafe file category: {candidate}")
         if is_binary(resolved):
             _raise("unsafe_file", f"binary file is not supported: {candidate}")
 
         selected_symbol = symbol
-        try:
-            selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
-                resolved, symbol=symbol, start_line=start_line, end_line=end_line
-            )
-            symbol_matched = symbol_matched or bool(symbol)
-        except InspectionError as exc:
-            if exc.code != "symbol_not_found" or start_line is not None or end_line is not None:
-                raise
+        if structured:
+            if symbol or start_line is not None or end_line is not None:
+                _raise("invalid_selection", "structured inspection uses automatic summaries, not source ranges or symbols")
+            content, fingerprint, line_count, source_bytes = _structured_summary(resolved, root)
+            selected_lines = [content]
+            selected_start, selected_end = 1, 1
             selected_symbol = None
-            selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
-                resolved, symbol=None, start_line=None, end_line=None
-            )
+        else:
+            try:
+                selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
+                    resolved, symbol=symbol, start_line=start_line, end_line=end_line
+                )
+                symbol_matched = symbol_matched or bool(symbol)
+            except InspectionError as exc:
+                if exc.code != "symbol_not_found" or start_line is not None or end_line is not None:
+                    raise
+                selected_symbol = None
+                selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
+                    resolved, symbol=None, start_line=None, end_line=None
+                )
         selected_bytes = len("\n".join(selected_lines).encode("utf-8"))
         total_bytes += selected_bytes
         if total_bytes > MAX_TOTAL_BYTES:
@@ -246,22 +298,34 @@ def inspect_sources(
         total_lines += len(selected_lines)
         if total_lines > MAX_TOTAL_LINES:
             _raise("total_too_large", "combined file lines exceed limit")
-        entries.append(
-            {
-                "path": safe_relpath(resolved, root),
-                "bytes": selected_bytes,
-                "source_bytes": source_bytes,
-                "line_count": len(selected_lines),
-                "source_line_count": line_count,
-                "fingerprint": fingerprint,
-                "selection": {
-                    "symbol": selected_symbol,
-                    "start_line": selected_start,
-                    "end_line": selected_end,
-                },
-                "content": "\n".join(selected_lines),
-            }
-        )
+        if structured:
+            entries.append(
+                {
+                    "path": safe_relpath(resolved, root),
+                    "source_bytes": source_bytes,
+                    "fingerprint": fingerprint[:12],
+                    "selection": {"mode": "structured_summary"},
+                    "content": "\n".join(selected_lines),
+                }
+            )
+        else:
+            entries.append(
+                {
+                    "path": safe_relpath(resolved, root),
+                    "bytes": selected_bytes,
+                    "source_bytes": source_bytes,
+                    "line_count": len(selected_lines),
+                    "source_line_count": line_count,
+                    "fingerprint": fingerprint,
+                    "selection": {
+                        "mode": "source",
+                        "symbol": selected_symbol,
+                        "start_line": selected_start,
+                        "end_line": selected_end,
+                    },
+                    "content": "\n".join(selected_lines),
+                }
+            )
 
     if symbol and not symbol_matched:
         _raise("symbol_not_found", f"symbol not found: {symbol}")

@@ -15,6 +15,7 @@ STOP_TERMS = {
 
 
 def classify_task(root: Path, prompt: str) -> dict:
+    lowered_prompt = prompt.lower()
     terms = {
         t.lower()
         for t in re.findall(r"[A-Za-z_][A-Za-z0-9_.-]{2,}", prompt)
@@ -27,6 +28,8 @@ def classify_task(root: Path, prompt: str) -> dict:
         rel = safe_relpath(path, root)
         low = rel.lower()
         score = sum(1 for term in terms if term in low)
+        if low in lowered_prompt or Path(low).name in lowered_prompt:
+            score += 10
         if score:
             candidates.append((score, rel))
     for rel in search_paths_for_terms(root, terms):
@@ -48,13 +51,15 @@ def classify_task(root: Path, prompt: str) -> dict:
         except Exception:
             pass
     candidates.sort(reverse=True)
-    confidence = "low" if not candidates else "medium" if candidates[0][0] < 2 else "high"
+    top_score = candidates[0][0] if candidates else 0
+    confidence = "low" if not candidates else "medium" if top_score < 2 else "high"
     likely_files = []
     for _, rel in candidates:
         if rel not in likely_files:
             likely_files.append(rel)
     return {
         "confidence": confidence,
+        "top_score": top_score,
         "likely_files": likely_files[:12] if confidence != "low" else [],
         "likely_symbols": symbols[:12] if confidence != "low" else [],
         "relevant_tests": tests[:8] if confidence != "low" else [],

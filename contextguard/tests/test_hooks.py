@@ -282,6 +282,41 @@ def test_user_prompt_context_uses_codex_hook_envelope(tmp_path: Path):
     assert "ContextGuard" in output["additionalContext"]
 
 
+def test_user_prompt_does_not_repeat_session_start_resume_context(tmp_path: Path):
+    state = tmp_path / ".contextguard"
+    state.mkdir()
+    (state / "manifest.json").write_text("{}")
+    from contextguard.context_capsule import persist_session_capsule
+
+    persist_session_capsule(tmp_path, {"current_objective": "old objective", "next_action": "old next action"})
+
+    result = run_hook("user_prompt_submit.py", {"prompt": "fix billing"}, tmp_path)
+    context = result["hookSpecificOutput"]["additionalContext"]
+
+    assert "old objective" not in context
+    assert "old next action" not in context
+
+
+def test_user_prompt_injects_bounded_evidence_for_explicit_ticket(tmp_path: Path):
+    state = tmp_path / ".contextguard"
+    state.mkdir()
+    (state / "manifest.json").write_text("{}")
+    (tmp_path / "SUPPORT_TICKET.md").write_text(
+        "Customer reports inventory retry failure.\n",
+        encoding="utf-8",
+    )
+
+    result = run_hook(
+        "user_prompt_submit.py",
+        {"prompt": "Investigate inventory retry failure in SUPPORT_TICKET.md"},
+        tmp_path,
+    )
+    context = result["hookSpecificOutput"]["additionalContext"]
+
+    assert "ContextGuard task evidence" in context
+    assert "SUPPORT_TICKET.md sha=" in context
+
+
 def test_user_prompt_adds_single_worker_routing_for_bounded_feature(tmp_path: Path):
     state = tmp_path / ".contextguard"
     state.mkdir()

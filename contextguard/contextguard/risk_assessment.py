@@ -95,8 +95,6 @@ def render_no_delegation_directive(assessment: dict[str, object]) -> str:
         return ""
     reasons = ", ".join(str(item) for item in assessment.get("reasons", [])[:6]) or "high_risk"
     return (
-        "ContextGuard routing lock: this task is high-risk "
-        f"({reasons}). Do not spawn any subagent or worker. "
-        "Do not use full-history forks for delegation. Keep design, migration, concurrency, "
-        "payment, security, and data-integrity work on the parent model."
+        f"ContextGuard routing lock ({reasons}): Do not spawn any subagent or use a full-history fork. "
+        "Continue locally; the routing decision is final and needs no worker-configuration inspection."
     )

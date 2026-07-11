@@ -1,0 +1,18 @@
+{
+  "benchmark": "task-evidence-and-structured-inspect-mechanism-ab",
+  "combined_reduction_vs_previous_orientation_percent": 73.98,
+  "combined_visible_bytes": 2235,
+  "limitations": [
+    "Deterministic mechanism benchmark; it does not prove that a stochastic Codex run will skip every prior orientation command.",
+    "The post-change live Codex pair was quota-rejected at zero tokens and is invalid."
+  ],
+  "packet_contains_ticket": true,
+  "previous_live_orientation_commands": 8,
+  "previous_live_orientation_output_bytes": 8590,
+  "previous_live_structured_discovery_bytes": 1600,
+  "structured_file_count": 4,
+  "structured_inspect_bytes": 1281,
+  "structured_values_hidden": true,
+  "task_evidence_bytes": 954,
+  "task_evidence_tokens_estimate": 239
+}

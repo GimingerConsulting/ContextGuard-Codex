@@ -14,11 +14,12 @@ def test_policy_is_single_adaptive_maximum_efficiency_mode():
     assert "Orient once" in policy
     assert "Escalate only the missing evidence" in policy
     assert "contextguard-worker" in policy
-    assert "exactly one bounded worker" in policy
+    assert "exactly one bounded `contextguard-worker`" in policy
     assert "Parent reviews the diff" in policy
-    assert "Prefer `contextguard inspect` for 1-4 named source files" in policy
-    assert "scan prompt and likely files for risk before delegation" in policy
-    assert "do not spawn any subagent" in policy
+    assert "Prefer `contextguard inspect` for 1-4 named source or structured files" in policy
+    assert "scan prompt and likely files before delegation" in policy
+    assert "High-risk work stays local" in policy
+    assert "do not inspect worker configuration" in policy
     assert "isolated prompt, never a full-history fork" in policy
     assert "changed files, validation, and only real risks" in policy
     assert len(policy.encode()) < 2000

@@ -106,7 +106,9 @@ contextguard setup
 contextguard status
 contextguard refresh
 contextguard report
+contextguard orient --query "investigate the issue in SUPPORT_TICKET.md"
 contextguard capture -- pytest -q
+contextguard inspect app.py data/production.log scenario.json
 contextguard large-file data.json --contains error --limit 10
 contextguard uninstall-project
 ```
@@ -117,6 +119,8 @@ contextguard uninstall-project
 
 - Skills provide explicit user commands.
 - The project-local runner compacts noisy command output before the host receives stdout.
+- Task-conditioned evidence packets rank explicit files and relevant excerpts under a hard token budget before broad exploration.
+- Structured inspection reports schemas, counts, severities and redacted error signatures without exposing raw values.
 - Hooks provide optional automatic initialization and defense in depth.
 - The Python package performs project detection, indexing, documentation updates, command classification, session checkpoints, read fingerprinting, command-budget advice, output capture, large-file summaries and local metrics.
 - SQLite stores metadata, hashes, symbols, command executions, cache reuse and conservative savings estimates.
@@ -193,6 +197,7 @@ Existing projects keep user-authored AGENTS.md content. ContextGuard inserts or 
 contextguard status
 contextguard capture -- python3 -m pytest
 contextguard inspect path/to/file.py path/to/other.py
+contextguard orient --query "fix the issue in SUPPORT_TICKET.md"
 contextguard large-file data.json --contains error --limit 10
 contextguard session-cost
 contextguard lifetime-savings

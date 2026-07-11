@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from _bootstrap import read_event, write_event
 from contextguard.config import state_dir
-from contextguard.context_capsule import build_capsule, build_session_capsule
-from contextguard.cross_session import render_cross_session_brief
+from contextguard.context_capsule import build_capsule
 from contextguard.database import connect, increment
 from contextguard.model_router import route_task
 from contextguard.project import detect_project
@@ -12,6 +11,7 @@ from contextguard.project_context import load_project_context
 from contextguard.risk_assessment import render_no_delegation_directive
 from contextguard.session_state import load_session_state
 from contextguard.task_classifier import classify_task
+from contextguard.task_evidence import build_task_evidence
 
 
 event = read_event()
@@ -28,12 +28,13 @@ if (state_dir(info.root) / "manifest.json").exists() and prompt:
         supplemental_text=supplemental,
     )
     session = load_session_state(info.root)
+    # SessionStart already injects cross-session and checkpoint context. Repeating it here
+    # makes every new user turn larger without adding new evidence.
     parts = [
         part
         for part in (
-            render_cross_session_brief(info.root, token_limit=200),
-            build_session_capsule(info.root),
-            build_capsule(info.root, prompt, token_limit=300),
+            build_capsule(info.root, prompt, token_limit=140),
+            build_task_evidence(info.root, prompt, token_limit=420, classification=classification),
         )
         if part
     ]

@@ -31,6 +31,7 @@ from .quota_proxy import quota_proxy_report
 from .cross_session import load_cross_session_summary, render_cross_session_brief
 from .session_cost import session_cost_report
 from .ledger import ledger_summary
+from .task_evidence import build_task_evidence
 
 
 def init_project(args: argparse.Namespace) -> int:
@@ -303,6 +304,13 @@ def inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def orient(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    text = build_task_evidence(info.root, args.query, token_limit=args.budget)
+    print(text or "ContextGuard task evidence: no high-confidence packet; start with scoped search.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="contextguard")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -372,6 +380,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--start-line", type=int)
     p.add_argument("--end-line", type=int)
     p.set_defaults(func=inspect)
+    p = sub.add_parser("orient")
+    p.add_argument("--query", required=True)
+    p.add_argument("--path")
+    p.add_argument("--budget", type=int, default=420)
+    p.set_defaults(func=orient)
     p = sub.add_parser("uninstall-project")
     p.add_argument("--path")
     p.add_argument("--yes", action="store_true")

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 efficiency extension (2026-07-11)
+
+- Added task-conditioned evidence packets with explicit-file ranking, bounded relevant excerpts, hashes and likely-test handles.
+- Added safe structured summaries to `contextguard inspect` for JSON, JSONL, CSV, TSV and logs; raw values are omitted and variable error fields are redacted.
+- Removed duplicate cross-session/checkpoint injection from every UserPromptSubmit and moved dynamic session state behind a stable cache-friendly prefix.
+- Compacted routing directives and made high-risk routing decisions final so agents do not spend commands inspecting worker configuration.
+- Added `contextguard orient --query ...` for an explicit task evidence packet.
+- Added a deterministic mechanism benchmark showing the packet plus structured evidence at 2,235 visible bytes versus 8,590 bytes in the prior live orientation phase, a 73.98% reduction. A post-change live Codex rerun was quota-rejected at zero tokens and is not treated as evidence.
+
 ## 0.4.1
 
 - Strengthened managed project instructions so large `sed`, `tail`, `head`, `cat`, `awk`, `jq`, `rg`, pipeline and multi-file inspections must use the project capture runner.

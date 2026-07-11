@@ -60,13 +60,8 @@ def route_task(
         return {**base, "eligible": False, "reason": "not_an_implementation_task", "directive": ""}
     files = ", ".join(likely_files[:4])
     directive = (
-        "ContextGuard model routing: after you finish orientation and define a bounded implementation package, "
-        f"you must delegate exactly one implementation worker using agent type `{WORKER_AGENT}`. "
-        "Start it with an isolated prompt, not a full-history fork, because Codex cannot change the model on a "
-        "full-history fork. Candidate scope: "
-        f"{files}. "
-        "Give the worker file ownership, acceptance criteria, and focused tests. Do not delegate unresolved design "
-        "or risk decisions. When it returns, review the worker diff and run final validation yourself. If the worker "
-        "fails, is incomplete, or reports ambiguity, continue locally with the parent model."
+        f"ContextGuard routing: delegate exactly one `{WORKER_AGENT}` after orientation with a bounded isolated "
+        f"prompt, not a full-history fork. Scope: {files}. Give acceptance criteria and focused tests. Parent must "
+        "review the worker diff, run final validation, and continue locally on failure or ambiguity."
     )
     return {**base, "eligible": True, "reason": "bounded_implementation", "directive": directive}
