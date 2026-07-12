@@ -24,6 +24,7 @@
 - Distribution build passed and produced `contextguard-0.9.1-py3-none-any.whl` plus `contextguard-0.9.1.tar.gz`.
 - Conservative three-file source-read A/B: 1,942 RAW tokens versus 938 ContextGuard-visible tokens, saving 1,004 tokens (61.07%) with matching successful exit codes.
 - The A/B compares against raw source output rather than the previous JSON inspector payload, so it does not inflate the savings claim.
+- Release implementation was pushed to GitHub `main`, the configured Git marketplace was refreshed, and `contextguard@contextguard` was installed and enabled as plain version `0.9.1` at `~/.codex/plugins/cache/contextguard/contextguard/0.9.1`.
 
 ### Risk and fallback
 
