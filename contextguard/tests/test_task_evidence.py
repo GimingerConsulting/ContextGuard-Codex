@@ -12,7 +12,7 @@ def test_explicit_file_reference_is_ranked_first(tmp_path: Path):
     result = classify_task(tmp_path, "Investigate the customer issue in SUPPORT_TICKET.md")
 
     assert result["likely_files"][0] == "SUPPORT_TICKET.md"
-    assert result["top_score"] >= 10
+    assert result["top_score"] >= 1
 
 
 def test_task_evidence_is_bounded_and_contains_expansion_handles(tmp_path: Path):

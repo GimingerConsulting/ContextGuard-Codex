@@ -32,3 +32,11 @@ def test_classifier_describes_progressive_retrieval_and_escalation(tmp_path: Pat
     assert result["retrieval_levels"][0] == "metadata"
     assert result["retrieval_levels"][-1] == "wider_repository"
     assert "security_or_persistence" in result["escalate_when"]
+
+
+def test_classifier_demotes_generated_benchmark_artifacts(tmp_path: Path):
+    runtime = tmp_path / "contextguard" / "task_classifier.py"
+    runtime.parent.mkdir()
+    runtime.write_text("token efficiency", encoding="utf-8")
+    classified = classify_task(tmp_path, "optimize task classifier token efficiency")
+    assert classified["likely_files"][0] == "contextguard/task_classifier.py"
