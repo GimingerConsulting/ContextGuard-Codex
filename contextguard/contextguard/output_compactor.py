@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 
 
 def _clip(line: str, limit: int = 500) -> str:
@@ -39,12 +40,83 @@ def _command_signal(lines: list[str], command: str, limit: int = 16) -> list[str
         ]
     elif re.search(r"(?:^|\s)(?:rg|grep|find|git status)(?:\s|$)", lowered):
         signal = [line for line in lines if line.strip()]
+    elif re.search(
+        r"(?:^|\s)(?:cargo|docker|podman|kubectl|terraform|gradle|mvn|gh|go\s+(?:test|build|vet)|npm|pnpm|yarn|bun|ruff|mypy|tsc|eslint|vitest)(?:\s|$)",
+        lowered,
+    ):
+        nonempty = [line for line in lines if line.strip()]
+        signal = nonempty[: max(1, limit // 2)]
+        if len(nonempty) > limit:
+            signal += nonempty[-max(1, limit // 2) :]
     else:
         return []
     clipped = [_clip(line) for line in signal[:limit]]
     if len(signal) > limit:
         clipped.append(f"... {len(signal) - limit} additional signal lines archived")
     return clipped
+
+
+def _json_signal(combined: str) -> list[str]:
+    candidate = combined.strip()
+    if not candidate or candidate[:1] not in {"{", "["}:
+        return []
+    try:
+        value = json.loads(candidate)
+    except json.JSONDecodeError:
+        return []
+    if isinstance(value, dict):
+        keys = [str(key) for key in list(value)[:20]]
+        return [
+            f"json_object: {len(value)} keys",
+            "json_keys: " + ", ".join(keys),
+        ]
+    if isinstance(value, list):
+        signal = [f"json_array: {len(value)} items"]
+        object_items = [item for item in value[:20] if isinstance(item, dict)]
+        if object_items:
+            keys: list[str] = []
+            for item in object_items:
+                for key in item:
+                    rendered = str(key)
+                    if rendered not in keys:
+                        keys.append(rendered)
+                    if len(keys) >= 20:
+                        break
+            signal.append("item_keys: " + ", ".join(keys))
+        return signal
+    return [f"json_scalar: {type(value).__name__}"]
+
+
+def _repeated_line_signal(lines: list[str], limit: int = 6) -> list[str]:
+    representatives: dict[str, str] = {}
+    counts: Counter[str] = Counter()
+    for line in lines:
+        compact = line.strip()
+        if not compact:
+            continue
+        signature = _signature(compact)
+        representatives.setdefault(signature, compact)
+        counts[signature] += 1
+    repeated = [item for item in counts.most_common() if item[1] > 1]
+    return [
+        f"repeated x{count}: {_clip(representatives[signature], 300)}"
+        for signature, count in repeated[:limit]
+    ]
+
+
+def _output_kind(command: str, combined: str, lines: list[str], test_summary: str | None) -> str:
+    lowered = command.lower()
+    if "git diff" in lowered or any(line.startswith("diff --git ") for line in lines):
+        return "diff"
+    if test_summary or re.search(r"(?:pytest|cargo test|go test|vitest|npm test|pnpm test|yarn test)", lowered):
+        return "test"
+    if _json_signal(combined):
+        return "json"
+    if re.search(r"(?:^|\s)(?:rg|grep|find|git status)(?:\s|$)", lowered):
+        return "search"
+    if len(lines) > 20 and _repeated_line_signal(lines):
+        return "log"
+    return "generic"
 
 
 def _test_outcome(test_summary: str | None) -> str:
@@ -162,7 +234,12 @@ def compact_output(stdout: str, stderr: str = "", *, limit: int = 24, command: s
     outcome = _test_outcome(test_summary)
     if outcome == "unknown" and errors and not is_diff:
         outcome = "failed"
+    output_kind = _output_kind(command, combined, lines, test_summary)
     signal_lines = _command_signal(lines, command)
+    if output_kind == "json":
+        signal_lines = _json_signal(combined)
+    elif output_kind == "log":
+        signal_lines = _repeated_line_signal(lines) or signal_lines
     evidence = {
         "outcome": outcome,
         "test_summary": test_summary,
@@ -190,6 +267,7 @@ def compact_output(stdout: str, stderr: str = "", *, limit: int = 24, command: s
         "stack_traces": stack_traces,
         "summary_lines": selected,
         "signal_lines": signal_lines,
+        "output_kind": output_kind,
         "evidence": evidence,
         "evidence_fingerprint": hashlib.sha256(
             json.dumps(fingerprint_payload, sort_keys=True).encode()

@@ -101,3 +101,22 @@ def test_git_diff_content_is_not_classified_as_failure():
     assert compact["errors"] == []
     assert compact["evidence"]["outcome"] == "unknown"
     assert compact["signal_lines"][0].startswith("diff --git")
+
+
+def test_json_output_routes_to_schema_only_signal():
+    compact = compact_output(
+        '{"users":[{"email":"secret@example.test"}],"next":null}',
+        command="curl https://example.test/api/users.json",
+    )
+
+    assert compact["output_kind"] == "json"
+    assert compact["signal_lines"] == ["json_object: 2 keys", "json_keys: users, next"]
+    assert "secret@example.test" not in "\n".join(compact["signal_lines"])
+
+
+def test_repeated_logs_collapse_by_normalized_signature():
+    output = "\n".join(f"2026-07-12 INFO processed item {index}" for index in range(40))
+    compact = compact_output(output, command="kubectl logs worker")
+
+    assert compact["output_kind"] == "log"
+    assert compact["signal_lines"][0].startswith("repeated x40:")

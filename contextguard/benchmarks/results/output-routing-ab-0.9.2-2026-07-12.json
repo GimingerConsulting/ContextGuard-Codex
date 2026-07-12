@@ -1,0 +1,77 @@
+{
+  "benchmark": "new-command-routing-and-repeat-output-raw-vs-contextguard",
+  "cases": [
+    {
+      "archived_output_sha256": "e880298c1a716de17e38b1312dce43c1a75decda1e9b89cc4831d2e0be2f63e8",
+      "capture_action": "capture",
+      "command": "kubectl logs deploy/worker --tail=500",
+      "contextguard_visible_tokens": 92,
+      "exact_archive_preserved": true,
+      "name": "kubectl_logs",
+      "output_kind": "log",
+      "raw_output_sha256": "e880298c1a716de17e38b1312dce43c1a75decda1e9b89cc4831d2e0be2f63e8",
+      "raw_visible_tokens": 9599,
+      "repeat_reference": "e880298c1a71",
+      "sensitive_value_hidden": true,
+      "token_reduction_percent": 99.04,
+      "tokens_saved": 9507
+    },
+    {
+      "archived_output_sha256": "27dc827ce814675ba1b5b3ad583edccf73636d8c91b320ccb6d7b49122dcebff",
+      "capture_action": "capture",
+      "command": "gh run view 123456 --log",
+      "contextguard_visible_tokens": 80,
+      "exact_archive_preserved": true,
+      "name": "github_actions",
+      "output_kind": "log",
+      "raw_output_sha256": "27dc827ce814675ba1b5b3ad583edccf73636d8c91b320ccb6d7b49122dcebff",
+      "raw_visible_tokens": 5039,
+      "repeat_reference": "27dc827ce814",
+      "sensitive_value_hidden": true,
+      "token_reduction_percent": 98.41,
+      "tokens_saved": 4959
+    },
+    {
+      "archived_output_sha256": "f6224a5b47fe3563bdeaace7d4ba7f7abbc666b0bc5f6a2002b2bbdb0263f717",
+      "capture_action": "capture",
+      "command": "cargo build --workspace",
+      "contextguard_visible_tokens": 391,
+      "exact_archive_preserved": true,
+      "name": "cargo_build",
+      "output_kind": "generic",
+      "raw_output_sha256": "f6224a5b47fe3563bdeaace7d4ba7f7abbc666b0bc5f6a2002b2bbdb0263f717",
+      "raw_visible_tokens": 6419,
+      "repeat_reference": "f6224a5b47fe",
+      "sensitive_value_hidden": true,
+      "token_reduction_percent": 93.91,
+      "tokens_saved": 6028
+    },
+    {
+      "archived_output_sha256": "03cc3c7aed0e1e7603e1a3eeae7f76657a8470d333a662cd754ab013504a771a",
+      "capture_action": "capture",
+      "command": "curl https://example.test/api/results.json",
+      "contextguard_visible_tokens": 82,
+      "exact_archive_preserved": true,
+      "name": "structured_api",
+      "output_kind": "json",
+      "raw_output_sha256": "03cc3c7aed0e1e7603e1a3eeae7f76657a8470d333a662cd754ab013504a771a",
+      "raw_visible_tokens": 9310,
+      "repeat_reference": "03cc3c7aed0e",
+      "sensitive_value_hidden": true,
+      "token_reduction_percent": 99.12,
+      "tokens_saved": 9228
+    }
+  ],
+  "contextguard_visible_tokens": 645,
+  "new_route_baseline": {
+    "contextguard_0_9_2_visible_tokens": 563,
+    "improvement_percent": 97.33,
+    "previous_0_9_1_visible_tokens": 21057,
+    "scope": "cargo, kubectl, and gh outputs that 0.9.1 classified as raw passthrough"
+  },
+  "raw_visible_tokens": 30367,
+  "token_reduction_percent": 97.88,
+  "tokenizer": "o200k_base via tiktoken",
+  "tokens_saved": 29722,
+  "valid": true
+}

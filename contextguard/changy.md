@@ -1,5 +1,40 @@
 # changy.md
 
+## 0.9.2 Deterministic Output Routing And Safe Reversible Deduplication
+
+### Source audit
+
+- `ojuschugh1/sqz`: adopted the concepts of command-family formatters and exact-content references, but wrote an independent Python implementation because sqz uses ELv2 and ContextGuard must keep its own safety/archive contract.
+- `headroomlabs-ai/headroom`: adopted deterministic content routing and reversible-original principles; rejected proxy interception and learned compression because Codex compatibility and semantic fidelity are weaker than the local runner path.
+- `saminkhan1/context-compression`: adopted round-trip/savings-gate principles and tokenizer-backed benchmark reporting; deferred alternate structured encodings until they can prove task parity as well as parse equivalence.
+- `microsoft/LLMLingua`: not integrated. Its model download, latency and semantic token deletion do not fit the default deterministic diagnostic path.
+- `pleasedodisturb/awesome-llm-token-optimization` and `ZongqianLi/Prompt-Compression-Survey`: used as taxonomy/watchlist references, not copied as product code.
+- `ooples/token-optimizer-mcp`: adopted session dedup and per-family measurement ideas; rejected dozens of replacement MCP tools because their schemas and operational surface would add context and failure modes.
+- The attachment's X/Twitter summary had no reproducible links or named posts, so it was not used as evidence.
+
+### Problems and solutions
+
+- Problem: common coding-agent commands such as Cargo, Kubernetes, Docker, Terraform and GitHub CLI were not automatically captured. Solution: expanded the parsed command-family registry and added regression coverage for each new route.
+- Problem: repeated successful outputs below the generic noise threshold could be re-emitted even when byte-identical. Solution: added session-scoped exact SHA-256 output records and short `ContextGuard ref:<hash>` receipts backed by the current local archive.
+- Problem: JSON and repetitive logs used generic head/tail selection. Solution: added deterministic output-kind routing, schema-only JSON signals and normalized repeated-line counts while retaining complete raw archives.
+- Problem found by the first live A/B: structured summaries removed `expected_version=0`, causing one optimized trial to conflate record version with `schema_version=1`. Solution: preserve only bounded, non-string operational scalars for safe version/count/quantity-style keys while redacting credentials, secrets, tokens, emails and accounts. The strict benchmark was not weakened.
+
+### Validation and measurements
+
+- Focused routing, dedup, structured-inspection and benchmark suites passed 49 tests after the information-fidelity fix.
+- Final repository validation passed 225 tests, source compilation, `git diff --check`, plugin manifest validation, and clean 0.9.2 wheel/sdist builds.
+- The established hard-output A/B remained exactly at its 0.9.1 baseline: 20,650 RAW versus 292 visible tokens (98.59%), proving no regression.
+- New routing/repeat A/B: 30,367 RAW versus 645 ContextGuard-visible tokens, 29,722 saved (97.88%). On Cargo, Kubernetes and GitHub CLI outputs that 0.9.1 passed through raw, the improvement was 97.33%.
+- The first three-pair live Codex run was rejected because pair 1 differed in concurrency `version` output despite all tests passing. It remains stored as failed evidence and was not used for release acceptance.
+- After the safe-scalar fix, the complete three-pair rerun passed exact canonical/concurrency equality in all pairs. Median RAW versus ContextGuard changes: total input -19.59%, uncached input -35.82%, cached input -20.15%, tool output -64.36%, model output -11.62%, reasoning output -7.83%, commands -19.35%, elapsed -2.79%.
+- Artifact paths: `benchmarks/results/output-ab-0.9.2-2026-07-12.json`, `benchmarks/results/output-routing-ab-0.9.2-2026-07-12.json`, and `benchmarks/results/real-codex-support-ab-0.9.2-2026-07-12-final/summary.json`.
+
+### Remaining risks
+
+- Command-family summaries are deterministic but cannot understand every tool version; complete archives and focused expansion remain the fallback.
+- Repeated-output references are session-local and are disabled for truncated archives, preventing false exactness when only bounded head/tail bytes were retained.
+- Safe scalar facts intentionally exclude strings and sensitive key families; exact structured evidence still requires an explicit bounded follow-up when omitted values matter.
+
 ## 0.9.1 Structural Source Outlines
 
 ### Problem

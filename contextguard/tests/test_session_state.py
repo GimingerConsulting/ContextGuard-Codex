@@ -4,6 +4,7 @@ from contextguard.session_state import (
     load_session_state,
     persist_checkpoint,
     record_evidence,
+    record_output,
     reset_session_state,
 )
 
@@ -21,6 +22,7 @@ def test_session_reset_keeps_latest_checkpoint_but_clears_transient_history(tmp_
     reset = load_session_state(tmp_path)
     assert reset["commands"] == []
     assert reset["reads"] == {}
+    assert reset["outputs"] == {}
     assert reset["checkpoint"]["current_objective"] == "finish optimizer"
     assert "ignored" not in reset["checkpoint"]
 
@@ -53,4 +55,17 @@ def test_record_evidence_detects_repeated_fingerprint(tmp_path: Path):
         "occurrences": 2,
         "first_summary_path": "/tmp/first.summary.json",
         "locations": [],
+    }
+
+
+def test_record_output_uses_exact_session_scoped_reference(tmp_path: Path):
+    first = record_output(tmp_path, "abcdef1234567890", "/tmp/first.summary.json", raw_bytes=4096)
+    second = record_output(tmp_path, "abcdef1234567890", "/tmp/second.summary.json", raw_bytes=4096)
+
+    assert first["repeated"] is False
+    assert second == {
+        "repeated": True,
+        "occurrences": 2,
+        "first_summary_path": "/tmp/first.summary.json",
+        "reference": "abcdef123456",
     }

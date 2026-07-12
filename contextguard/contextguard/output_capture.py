@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -19,7 +20,7 @@ from .budget_enforcer import evaluate_budget, render_budget_feedback
 from .evidence_expand import build_evidence_expand_directive
 from .ledger import record_ledger
 from .optimization_advisor import analyze_command, analyze_completed_command, record_command
-from .session_state import record_evidence
+from .session_state import record_evidence, record_output
 
 
 NOISY_MEDIUM_BYTES = 2048
@@ -125,6 +126,12 @@ def _is_noisy_medium_output(summary: dict) -> bool:
 
 def _render_summary(argv: list[str], summary: dict) -> str:
     archive = summary.get("display_summary_path", summary["summary_path"])
+    repeated_output = summary.get("repeated_output")
+    if repeated_output and repeated_output.get("repeated"):
+        return (
+            f"ContextGuard ref:{repeated_output['reference']} x{repeated_output['occurrences']} unchanged; "
+            f"archive: {archive}\n"
+        )
     repeated = summary.get("repeated_evidence")
     if repeated and repeated.get("repeated"):
         rendered = (
@@ -246,6 +253,20 @@ def capture(root: Path, argv: list[str]) -> int:
         locations=list(evidence_block.get("locations") or []),
         failed_tests=list(evidence_block.get("failed_tests") or []),
     )
+    content_payload = b"\0".join(
+        (bytes(stdout_result.get("content", b"")), bytes(stderr_result.get("content", b"")))
+    )
+    content_fingerprint = hashlib.sha256(content_payload).hexdigest()
+    summary["content_fingerprint"] = content_fingerprint
+    if summary.get("archive_truncated"):
+        summary["repeated_output"] = {"repeated": False, "occurrences": 1, "reference": content_fingerprint[:12]}
+    else:
+        summary["repeated_output"] = record_output(
+            root,
+            content_fingerprint,
+            summary_path.as_posix(),
+            raw_bytes=summary["raw_bytes"],
+        )
     summary["expand_directive"] = build_evidence_expand_directive(root, summary["evidence_fingerprint"])
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     conn = connect(state_dir(root) / "index.sqlite")
@@ -258,6 +279,10 @@ def capture(root: Path, argv: list[str]) -> int:
     raw_bytes = summary["raw_bytes"]
     should_compact = (
         bool(advice)
+        or (
+            bool((summary.get("repeated_output") or {}).get("repeated"))
+            and raw_bytes >= 512
+        )
         or adaptive_should_compact(
             raw_bytes,
             root,

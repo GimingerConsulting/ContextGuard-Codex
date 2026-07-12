@@ -64,6 +64,14 @@ _UNSAFE_SUFFIXES = {
 }
 _STRUCTURED_SUFFIXES = {".csv", ".json", ".jsonl", ".log", ".tsv"}
 _ALWAYS_UNSAFE_DIRS = {".git", ".contextguard", ".venv", "__pycache__", "build", "dist", "generated", "tmp", "temp"}
+_SAFE_SCALAR_KEY = re.compile(
+    r"(?:^|_)(?:version|count|limit|offset|page|size|quantity|available|reserved|enabled|status|ok)$",
+    re.I,
+)
+_SENSITIVE_KEY = re.compile(
+    r"(?:password|secret|token|credential|api_?key|auth|phone|ssn|card|account|email)",
+    re.I,
+)
 
 
 class InspectionError(ValueError):
@@ -117,6 +125,52 @@ def _file_stats(path: Path) -> tuple[str, int, int]:
     return hasher.hexdigest(), line_count, size
 
 
+def _structured_scalar_facts(path: Path, suffix: str, limit: int = 12) -> list[str]:
+    """Expose only bounded non-string operational scalars needed for correct reasoning."""
+    observed: dict[str, list[object]] = {}
+
+    def visit(value: object, prefix: str = "", depth: int = 0) -> None:
+        if depth > 4 or len(observed) >= limit:
+            return
+        if isinstance(value, dict):
+            for raw_key, child in value.items():
+                key = str(raw_key)
+                path_key = f"{prefix}.{key}" if prefix else key
+                if (
+                    _SAFE_SCALAR_KEY.search(key)
+                    and not _SENSITIVE_KEY.search(key)
+                    and (child is None or isinstance(child, (bool, int, float)))
+                ):
+                    values = observed.setdefault(path_key, [])
+                    if child not in values and len(values) < 4:
+                        values.append(child)
+                elif isinstance(child, (dict, list)):
+                    visit(child, path_key, depth + 1)
+        elif isinstance(value, list):
+            for child in value[:20]:
+                visit(child, prefix + "[]", depth + 1)
+
+    try:
+        if suffix == ".json":
+            visit(json.loads(path.read_text(encoding="utf-8")))
+        elif suffix == ".jsonl":
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                for index, line in enumerate(handle):
+                    if index >= 50:
+                        break
+                    try:
+                        visit(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        return []
+    facts = []
+    for key, values in observed.items():
+        rendered = "|".join(json.dumps(value, separators=(",", ":")) for value in values)
+        facts.append(f"{key}={rendered}")
+    return facts[:limit]
+
+
 def _structured_summary(path: Path, root: Path) -> tuple[str, str, int, int]:
     fingerprint, line_count, source_bytes = _file_stats(path)
     result = summarize_large_file(path, limit=2)
@@ -129,6 +183,9 @@ def _structured_summary(path: Path, root: Path) -> tuple[str, str, int, int]:
         ".log": ("size", "line_count", "severity_counts", "error_signatures"),
     }[suffix]
     payload = {key: result[key] for key in allowed if key in result}
+    scalar_facts = _structured_scalar_facts(path, suffix)
+    if scalar_facts:
+        payload["scalar_facts"] = scalar_facts
     if "error_signatures" in payload:
         payload["error_signatures"] = [str(item)[:180] for item in payload["error_signatures"][:2]]
     content = "mode=structured_summary;" + ";".join(

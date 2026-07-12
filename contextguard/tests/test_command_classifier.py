@@ -35,6 +35,22 @@ def test_python_module_validation_and_tee_pipeline_are_captured():
     assert classify_command("python -m pytest -q 2>&1 | tee /tmp/tests.log").action == "capture"
 
 
+def test_common_agent_command_families_are_captured():
+    commands = [
+        "cargo test --workspace",
+        "go test ./...",
+        "docker build .",
+        "kubectl get pods -A",
+        "terraform plan",
+        "gh run view 123 --log",
+        "pnpm test",
+        "vitest run",
+        "curl https://example.test/api/results.json",
+    ]
+    for command in commands:
+        assert classify_command(command).action == "capture", command
+
+
 def test_destructive_commands_not_rewritten():
     decision = classify_command("rm -rf build")
     assert decision.action == "allow"

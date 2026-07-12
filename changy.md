@@ -495,3 +495,12 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Counterbalanced median: total input -13.82%, cached input -11.05%, uncached input -35.27%, model output -16.12%, tool output -43.50%, commands -41.38%, elapsed -17.46%. Reasoning tokens increased 26.59% and are reported separately.
 - Sources: https://arxiv.org/abs/2606.17016, https://arxiv.org/abs/2508.21433, https://github.com/Opencode-DCP/opencode-dynamic-context-pruning, https://aider.chat/docs/repomap.html, https://swe-agent.com/0.7/background/aci/, https://openai.com/index/api-prompt-caching/
 - Release: pushed commit `61ee61f` to `GimingerConsulting/ContextGuard-Codex` main and installed/enabled immutable plugin build `0.9.0+codex.20260712183734`; installed-copy checks confirmed the lean gate, silent allow hook, and typed PASS codec.
+
+## 2026-07-12 — ContextGuard 0.9.2 output-routing research and release gate
+
+- Audited every repository/resource in the supplied source list. Implemented deterministic ideas from sqz, Headroom, context-compression and token-optimizer-mcp; kept LLMLingua, proxy interception, replacement MCP proliferation and unverifiable social-media claims out of the release.
+- Added broader command-family capture, content-kind routing, schema-only JSON signals, normalized repetitive-log collapse and exact session-scoped output references backed by local archives.
+- The first live A/B exposed a structured-summary information-loss issue (`expected_version=0` was omitted), so that run was rejected. Added bounded safe operational scalar facts without exposing string values or sensitive keys, then reran the unchanged strict benchmark.
+- Feature A/B: 30,367 RAW versus 645 visible tokens (97.88% reduction); newly routed 0.9.1 passthrough families improved 97.33%. Existing hard-output compression remained unchanged at 98.59%.
+- Corrected live three-pair Codex A/B passed every exact quality gate. Median reductions: total input 19.59%, uncached input 35.82%, cached input 20.15%, tool output 64.36%, model output 11.62%, reasoning output 7.83%, commands 19.35%, elapsed 2.79%.
+- Final release validation passed 225 tests, source compilation, whitespace checks, plugin manifest validation, and 0.9.2 wheel/sdist builds.

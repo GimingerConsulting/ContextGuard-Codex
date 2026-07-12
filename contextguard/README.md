@@ -173,7 +173,7 @@ Install the current plugin from GitHub:
 codex plugin marketplace add GimingerConsulting/ContextGuard
 ```
 
-Update an existing installation by installing the latest plugin version again, then start a new Codex thread so the refreshed skills, hooks and bundled runner are loaded. ContextGuard 0.9.1 is intended for real-world testing and early production use; token and API savings vary by workflow.
+Update an existing installation by installing the latest plugin version again, then start a new Codex thread so the refreshed skills, hooks and bundled runner are loaded. ContextGuard 0.9.2 is intended for real-world testing and early production use; token and API savings vary by workflow.
 
 ## Initialize a project
 

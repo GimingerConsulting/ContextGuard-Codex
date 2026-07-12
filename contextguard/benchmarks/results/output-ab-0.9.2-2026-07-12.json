@@ -1,0 +1,23 @@
+{
+  "archived_output_sha256": "38c6913323fc969501732ac0076ed8b6e6a5d8797d582eea7cf7330a5de4aed1",
+  "benchmark": "hard-130-failure-output-raw-vs-contextguard",
+  "command": "python3 -m pytest -q",
+  "command_seconds": 0.510294,
+  "contextguard_hook_seconds_median": 0.081934,
+  "contextguard_overhead_seconds": 0.073382,
+  "contextguard_visible_bytes": 1283,
+  "contextguard_visible_tokens": 292,
+  "equivalent_information": true,
+  "exit_code": 1,
+  "failed_test_present": true,
+  "raw_output_sha256": "38c6913323fc969501732ac0076ed8b6e6a5d8797d582eea7cf7330a5de4aed1",
+  "raw_tokenization_seconds_median": 0.008552,
+  "raw_visible_bytes": 80573,
+  "raw_visible_tokens": 20650,
+  "summary_present": true,
+  "timing_samples": 5,
+  "token_reduction_percent": 98.59,
+  "tokenizer": "o200k_base via tiktoken",
+  "tokens_saved": 20358,
+  "visible_summary": "130 failed in 0.25s\nfailed_tests:\ntests/test_settlement.py::test_half_even_conversion_matrix[0]\ntests/test_settlement.py::test_half_even_conversion_matrix[1]\ntests/test_settlement.py::test_half_even_conversion_matrix[2]\ntests/test_settlement.py::test_half_even_conversion_matrix[3]\ntests/test_settlement.py::test_half_even_conversion_matrix[4]\ntests/test_settlement.py::test_half_even_conversion_matrix[5]\ntests/test_settlement.py::test_half_even_conversion_matrix[6]\ntests/test_settlement.py::test_half_even_conversion_matrix[7]\ntests/test_settlement.py::test_half_even_conversion_matrix[8]\ntests/test_settlement.py::test_half_even_conversion_matrix[9]\ntests/test_settlement.py::test_half_even_conversion_matrix[10]\ntests/test_settlement.py::test_half_even_conversion_matrix[11]\ntests/test_settlement.py::test_half_even_conversion_matrix[12]\ntests/test_settlement.py::test_half_even_conversion_matrix[13]\ntests/test_settlement.py::test_half_even_conversion_matrix[14]\ntests/test_settlement.py::test_half_even_conversion_matrix[15]\ntests/test_settlement.py::test_half_even_conversion_matrix[16]\ntests/test_settlement.py::test_half_even_conversion_matrix[17]\ntests/test_settlement.py::test_half_even_conversion_matrix[18]\ntests/test_settlement.py::test_half_even_conversion_matrix[19]"
+}

@@ -41,8 +41,18 @@ def classify_command(command: str) -> CommandDecision:
         return CommandDecision("capture", "git diff can emit large patches.")
     if parts[:2] == ["git", "log"] and not any(p.startswith("--oneline") for p in parts):
         return CommandDecision("capture", "Verbose git log can be compacted.")
-    if first in {"pytest", "ruff", "mypy", "npm", "pnpm", "yarn", "make"} or python_module in {"pytest", "ruff", "mypy"}:
+    validation_commands = {
+        "pytest", "ruff", "mypy", "npm", "pnpm", "yarn", "bun", "make",
+        "cargo", "docker", "podman", "kubectl", "terraform", "gradle", "mvn",
+        "gh", "tsc", "eslint", "vitest",
+    }
+    go_validation = first == "go" and len(parts) > 1 and parts[1] in {"test", "build", "vet"}
+    if first in validation_commands or go_validation or python_module in {"pytest", "ruff", "mypy"}:
         return CommandDecision("capture", "Validation command output is captured to preserve complete logs.")
+    if first in {"curl", "wget"} and any(
+        part in joined for part in ("api", ".json", ".jsonl", "application/json")
+    ):
+        return CommandDecision("capture", "Structured network output can be summarized compactly.")
     if first in {"grep", "rg"} and any(flag in parts for flag in ("-r", "-R", "--recursive")):
         return CommandDecision("capture", "Recursive search output can be large.")
     if first in {"tar", "unzip", "zipinfo"}:

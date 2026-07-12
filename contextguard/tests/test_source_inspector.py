@@ -264,6 +264,32 @@ def test_inspect_sources_summarizes_structured_files_without_raw_values(tmp_path
     assert "private-value" not in rendered
 
 
+def test_structured_summary_keeps_safe_operational_scalars(tmp_path: Path) -> None:
+    scenario = write_source(
+        tmp_path,
+        "data/scenario.json",
+        json.dumps({
+            "records": [{"quantity": 10, "schema_version": 1}],
+            "request": {"quantity": 3, "expected_version": 0, "token": 123456},
+        }),
+    )
+    export = write_source(
+        tmp_path,
+        "data/export.jsonl",
+        '{"quantity":1,"schema_version":1,"account":123}\n'
+        '{"quantity":2,"schema_version":1,"account":456}\n',
+    )
+
+    result = inspect_sources(tmp_path, [scenario, export])
+    rendered = json.dumps(result)
+
+    assert "request.expected_version=0" in rendered
+    assert "records[].schema_version=1" in rendered
+    assert "schema_version=1" in rendered
+    assert "token=123456" not in rendered
+    assert "account=123" not in rendered
+
+
 def test_inspect_sources_rejects_symlink_escape(tmp_path: Path) -> None:
     root = tmp_path
     safe = write_source(root, "src/safe.py", "print('safe')\n")

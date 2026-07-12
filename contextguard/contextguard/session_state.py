@@ -13,6 +13,7 @@ STATE_VERSION = 2
 MAX_COMMANDS = 200
 MAX_READS = 200
 MAX_EVIDENCE = 200
+MAX_OUTPUTS = 200
 MAX_ROUTING_EVENTS = 100
 MAX_LEDGER_EVENTS = 500
 CHECKPOINT_FIELDS = (
@@ -50,6 +51,7 @@ def _empty_state(checkpoint: dict | None = None) -> dict:
         "commands": [],
         "reads": {},
         "evidence": {},
+        "outputs": {},
         "routing_events": [],
         "advice_emitted": [],
         "metrics": {
@@ -89,7 +91,7 @@ def save_session_state(root: Path, state: dict) -> Path:
     state["commands"] = list(state.get("commands", []))[-MAX_COMMANDS:]
     state["routing_events"] = list(state.get("routing_events", []))[-MAX_ROUTING_EVENTS:]
     state["ledger_events"] = list(state.get("ledger_events", []))[-MAX_LEDGER_EVENTS:]
-    for key, limit in (("reads", MAX_READS), ("evidence", MAX_EVIDENCE)):
+    for key, limit in (("reads", MAX_READS), ("evidence", MAX_EVIDENCE), ("outputs", MAX_OUTPUTS)):
         values = state.get(key, {})
         if isinstance(values, dict) and len(values) > limit:
             state[key] = dict(list(values.items())[-limit:])
@@ -168,6 +170,42 @@ def record_evidence(
         "occurrences": 1,
         "first_summary_path": summary_path,
         "locations": evidence[fingerprint]["locations"],
+    }
+
+
+def record_output(
+    root: Path,
+    fingerprint: str,
+    summary_path: str,
+    *,
+    raw_bytes: int,
+) -> dict:
+    """Record an exact, session-local output hash for reversible deduplication."""
+    state = load_session_state(root)
+    outputs = state.setdefault("outputs", {})
+    existing = outputs.get(fingerprint)
+    if existing:
+        existing["occurrences"] = int(existing.get("occurrences", 1)) + 1
+        existing["last_summary_path"] = summary_path
+        save_session_state(root, state)
+        return {
+            "repeated": True,
+            "occurrences": existing["occurrences"],
+            "first_summary_path": existing["first_summary_path"],
+            "reference": fingerprint[:12],
+        }
+    outputs[fingerprint] = {
+        "occurrences": 1,
+        "first_summary_path": summary_path,
+        "last_summary_path": summary_path,
+        "raw_bytes": raw_bytes,
+    }
+    save_session_state(root, state)
+    return {
+        "repeated": False,
+        "occurrences": 1,
+        "first_summary_path": summary_path,
+        "reference": fingerprint[:12],
     }
 
 

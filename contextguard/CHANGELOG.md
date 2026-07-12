@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.2
+
+- Added deterministic output-kind routing for tests, diffs, searches, JSON, repetitive logs and generic output without adding a model dependency.
+- Expanded automatic capture to Cargo, Go, Docker/Podman, Kubernetes, Terraform, Gradle/Maven, GitHub CLI, Bun, TypeScript/ESLint/Vitest and structured API responses.
+- Added exact session-scoped SHA-256 output references so repeated captured output becomes a short reversible receipt while the full output remains archived locally.
+- Added schema-only JSON signals and normalized repeated-log collapsing; raw JSON values remain hidden from visible summaries.
+- Preserved bounded non-string operational scalars such as `expected_version=0` in structured inspection while continuing to redact secret, credential, token, email, account and similar fields.
+- Added a feature-specific RAW-vs-ContextGuard benchmark: 30,367 versus 645 visible tokens (97.88% reduction), including 97.33% improvement on command families that 0.9.1 left as raw passthrough.
+- Passed the corrected three-pair real Codex support-ticket A/B with exact output equality and median reductions of 19.59% total input, 35.82% uncached input, 20.15% cached input and 64.36% tool output.
+
 ## 0.9.1
 
 - Changed default source inspection from a raw first-200-line read to a deterministic structural outline, following the token-budgeted repository-map pattern used by mature coding agents.

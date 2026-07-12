@@ -65,3 +65,16 @@ def test_passing_test_summary_uses_one_line_codec():
 
     assert rendered.startswith("ContextGuard PASS | 210 passed")
     assert len(rendered.encode()) < 120
+
+
+def test_repeated_exact_output_uses_compact_reversible_reference():
+    rendered = _render_summary([], {
+        "summary_path": "/tmp/result.json",
+        "display_summary_path": ".contextguard/tmp/result.json",
+        "repeated_output": {"repeated": True, "reference": "abc123def456", "occurrences": 3},
+    })
+
+    assert rendered == (
+        "ContextGuard ref:abc123def456 x3 unchanged; "
+        "archive: .contextguard/tmp/result.json\n"
+    )

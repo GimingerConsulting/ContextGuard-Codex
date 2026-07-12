@@ -127,7 +127,8 @@ def test_capture_references_repeated_equivalent_evidence(tmp_path: Path):
 
     assert first.returncode == second.returncode == 1
     assert "unique_errors:" in first.stdout
-    assert "ContextGuard repeated evidence" in second.stdout
+    assert "ContextGuard ref:" in second.stdout
+    assert "unchanged" in second.stdout
     assert "unique_errors:" not in second.stdout
     assert len(second.stdout.encode()) < len(first.stdout.encode())
 
