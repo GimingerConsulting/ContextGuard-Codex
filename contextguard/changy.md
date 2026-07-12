@@ -1,5 +1,34 @@
 # changy.md
 
+## 0.9.1 Structural Source Outlines
+
+### Problem
+
+- Default `contextguard inspect` still returned up to the first 200 raw lines per source file. That repeated implementation bodies during orientation even when the agent only needed file structure and symbol names.
+- A naive declaration extractor could still waste the entire budget on imports or one extremely long initializer.
+- The plugin manifest used a date-based Codex build suffix, which made the user-facing version harder to read.
+
+### Research and solution
+
+- Applied Aider's token-budgeted repository-map principle to ContextGuard's existing exact-file inspector: default reads now emit compact structure, while explicit symbol and line-range reads remain exact.
+- Kept the implementation dependency-free. Python uses `ast` for imports, classes, nested declarations, function signatures and top-level names; other source types use a deterministic declaration fallback.
+- Limited default outlines to 16 lines per file, capped imports at four, and truncated individual outline lines to 300 characters so large initializers cannot defeat compaction.
+- Preserved full-file fingerprints, source byte/line counts, path safety, binary checks, total limits and exact follow-up retrieval.
+- Set both package and Codex plugin manifests to plain `0.9.1` with no date build metadata.
+
+### Validation so far
+
+- Focused source-inspector suite: 18 passed.
+- Full test suite: 217 passed in 55.94 seconds.
+- Plugin schema validation passed.
+- Distribution build passed and produced `contextguard-0.9.1-py3-none-any.whl` plus `contextguard-0.9.1.tar.gz`.
+- Conservative three-file source-read A/B: 1,942 RAW tokens versus 938 ContextGuard-visible tokens, saving 1,004 tokens (61.07%) with matching successful exit codes.
+- The A/B compares against raw source output rather than the previous JSON inspector payload, so it does not inflate the savings claim.
+
+### Risk and fallback
+
+- Generic cross-language extraction recognizes bounded top-level single-line declarations and can omit unusual multiline declarations. Use `--symbol` or `--start-line`/`--end-line` for exact evidence; those paths remain unchanged.
+
 ## 2026-06-14 Capture Runner Enforcement 0.4.1
 
 ### Root Cause

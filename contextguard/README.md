@@ -173,7 +173,7 @@ Install the current plugin from GitHub:
 codex plugin marketplace add GimingerConsulting/ContextGuard
 ```
 
-Update an existing installation by installing the latest plugin version again, then start a new Codex thread so the refreshed skills, hooks and bundled runner are loaded. ContextGuard 0.9.0 is intended for real-world testing and early production use; token and API savings vary by workflow.
+Update an existing installation by installing the latest plugin version again, then start a new Codex thread so the refreshed skills, hooks and bundled runner are loaded. ContextGuard 0.9.1 is intended for real-world testing and early production use; token and API savings vary by workflow.
 
 ## Initialize a project
 
@@ -197,13 +197,15 @@ Existing projects keep user-authored AGENTS.md content. ContextGuard inserts or 
 contextguard status
 contextguard capture -- python3 -m pytest
 contextguard inspect path/to/file.py path/to/other.py
+contextguard inspect path/to/file.py --symbol target_function
+contextguard inspect path/to/file.py --start-line 120 --end-line 180
 contextguard orient --query "fix the issue in SUPPORT_TICKET.md"
 contextguard large-file data.json --contains error --limit 10
 contextguard session-cost
 contextguard lifetime-savings
 ```
 
-`contextguard capture -- <command>` is the host-independent path for noisy tests, logs, builds, diffs and searches. It stores full stdout and stderr locally, gives Codex a compact evidence summary, and preserves enough information for targeted follow-up inspection. `contextguard inspect` is for bounded source reads. `contextguard session-cost` and `contextguard lifetime-savings` report local token and API-cost estimates; these are not verified Codex server-side billing values.
+`contextguard capture -- <command>` is the host-independent path for noisy tests, logs, builds, diffs and searches. It stores full stdout and stderr locally, gives Codex a compact evidence summary, and preserves enough information for targeted follow-up inspection. `contextguard inspect` defaults to a compact structural outline of source files; use `--symbol` or an explicit line range when exact source is required. `contextguard session-cost` and `contextguard lifetime-savings` report local token and API-cost estimates; these are not verified Codex server-side billing values.
 
 ## Known limitations
 

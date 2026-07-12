@@ -42,6 +42,99 @@ def test_inspect_sources_returns_stable_compact_payload(tmp_path: Path) -> None:
     assert "\n" not in compact
 
 
+def test_default_python_inspection_returns_small_deterministic_outline(tmp_path: Path) -> None:
+    body = "\n".join(f"        value_{index} = {index}" for index in range(120))
+    source = write_source(
+        tmp_path,
+        "src/service.py",
+        "import os\nfrom pathlib import Path\n\nSETTING: str = 'active'\n\n"
+        "class Service:\n"
+        "    def run(self, target: Path, *, force: bool = False) -> str:\n"
+        f"{body}\n"
+        "        return os.fspath(target)\n",
+    )
+
+    result = inspect_sources(tmp_path, [source])
+    again = inspect_sources(tmp_path, [source])
+    entry = result["files"][0]
+
+    assert entry["selection"] == {"mode": "outline", "format": "python_ast", "symbol": None}
+    assert entry["source_line_count"] == 128
+    assert entry["source_bytes"] == len(source.read_bytes())
+    assert entry["bytes"] < entry["source_bytes"] // 4
+    assert "import os" in entry["content"]
+    assert "from pathlib import Path" in entry["content"]
+    assert "class Service:" in entry["content"]
+    assert "def run(self, target: Path, *, force: bool=False) -> str:" in entry["content"]
+    assert "value_119" not in entry["content"]
+    assert entry["fingerprint"] == again["files"][0]["fingerprint"]
+    assert entry["content"] == again["files"][0]["content"]
+
+
+def test_default_typescript_inspection_returns_small_declaration_outline(tmp_path: Path) -> None:
+    implementations = "\n".join(f"  const temporary{index} = {index};" for index in range(100))
+    source = write_source(
+        tmp_path,
+        "src/client.ts",
+        "import { request } from './transport';\n"
+        "export interface ClientOptions { timeout: number }\n"
+        "export type ClientResult = { ok: boolean };\n"
+        "export async function createClient(options: ClientOptions): Promise<ClientResult> {\n"
+        f"{implementations}\n"
+        "  return request(options);\n"
+        "}\n",
+    )
+
+    entry = inspect_sources(tmp_path, [source])["files"][0]
+
+    assert entry["selection"] == {"mode": "outline", "format": "generic", "symbol": None}
+    assert entry["source_line_count"] == 106
+    assert entry["source_bytes"] == len(source.read_bytes())
+    assert entry["bytes"] < entry["source_bytes"] // 4
+    assert "import { request }" in entry["content"]
+    assert "export interface ClientOptions" in entry["content"]
+    assert "export type ClientResult" in entry["content"]
+    assert "export async function createClient" in entry["content"]
+    assert "temporary99" not in entry["content"]
+
+
+def test_default_outline_bounds_single_line_declarations(tmp_path: Path) -> None:
+    source = write_source(tmp_path, "src/config.ts", f"export const CONFIG = '{'x' * 10_000}';\n")
+
+    entry = inspect_sources(tmp_path, [source])["files"][0]
+
+    assert entry["selection"]["mode"] == "outline"
+    assert entry["bytes"] < 350
+    assert entry["content"].endswith("…")
+
+
+def test_default_python_outline_prioritizes_symbols_after_many_imports(tmp_path: Path) -> None:
+    imports = "\n".join(f"import package_{index}" for index in range(20))
+    source = write_source(tmp_path, "src/import_heavy.py", f"{imports}\n\nclass ImportantService:\n    pass\n")
+
+    entry = inspect_sources(tmp_path, [source])["files"][0]
+
+    assert entry["content"].count("import package_") == 4
+    assert "class ImportantService:" in entry["content"]
+
+
+def test_explicit_symbol_and_range_still_return_exact_source(tmp_path: Path) -> None:
+    source = write_source(
+        tmp_path,
+        "src/exact.py",
+        "VALUE = 1\n\ndef target(name: str) -> str:\n    marker = 'exact body'\n    return name\n",
+    )
+
+    ranged = inspect_sources(tmp_path, [source], start_line=3, end_line=4)["files"][0]
+    symbol = inspect_sources(tmp_path, [source], symbol="target")["files"][0]
+
+    assert ranged["selection"] == {"mode": "source", "symbol": None, "start_line": 3, "end_line": 4}
+    assert ranged["content"] == "def target(name: str) -> str:\n    marker = 'exact body'"
+    assert symbol["selection"]["mode"] == "source"
+    assert symbol["selection"]["symbol"] == "target"
+    assert "    marker = 'exact body'" in symbol["content"]
+
+
 def test_inspect_sources_supports_one_file(tmp_path: Path) -> None:
     source = write_source(tmp_path, "src/only.py", "def only():\n    return 1\n")
 
@@ -69,6 +162,7 @@ def test_inspect_sources_supports_symbol_window_in_one_file_and_context_in_compa
     assert "def target" in file_entry["content"]
     assert file_entry["line_count"] <= MAX_FILE_LINES
     assert result["files"][1]["selection"]["symbol"] is None
+    assert result["files"][1]["selection"]["mode"] == "source"
     assert "def sibling" in result["files"][1]["content"]
 
 

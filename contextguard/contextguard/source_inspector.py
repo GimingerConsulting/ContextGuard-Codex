@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -18,6 +19,9 @@ MAX_TOTAL_BYTES = 96_000
 MAX_FILE_LINES = 200
 MAX_TOTAL_LINES = 500
 SYMBOL_WINDOW_LINES = 20
+MAX_OUTLINE_LINES = 16
+MAX_OUTLINE_LINE_CHARS = 300
+MAX_OUTLINE_IMPORT_LINES = 4
 
 _UNSAFE_DIRS = {
     ".git",
@@ -164,6 +168,109 @@ def _as_lines(text: str) -> list[str]:
     return text.splitlines()
 
 
+def _compact_outline_line(value: str) -> str:
+    compact = " ".join(value.split())
+    if len(compact) <= MAX_OUTLINE_LINE_CHARS:
+        return compact
+    return compact[: MAX_OUTLINE_LINE_CHARS - 1] + "…"
+
+
+def _python_outline(text: str) -> list[str] | None:
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+
+    outline: list[str] = []
+    import_count = 0
+
+    def add(line: int, depth: int, value: str) -> None:
+        if len(outline) < min(MAX_OUTLINE_LINES, MAX_FILE_LINES):
+            outline.append(f"L{line} {'  ' * depth}{_compact_outline_line(value)}")
+
+    def visit(nodes: list[ast.stmt], depth: int = 0) -> None:
+        nonlocal import_count
+        for node in nodes:
+            if len(outline) >= min(MAX_OUTLINE_LINES, MAX_FILE_LINES):
+                return
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                if import_count < MAX_OUTLINE_IMPORT_LINES:
+                    add(node.lineno, depth, ast.unparse(node))
+                    import_count += 1
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for decorator in node.decorator_list:
+                    add(decorator.lineno, depth, f"@{ast.unparse(decorator)}")
+                prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
+                returns = f" -> {ast.unparse(node.returns)}" if node.returns is not None else ""
+                add(node.lineno, depth, f"{prefix} {node.name}({ast.unparse(node.args)}){returns}:")
+                visit([item for item in node.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))], depth + 1)
+            elif isinstance(node, ast.ClassDef):
+                for decorator in node.decorator_list:
+                    add(decorator.lineno, depth, f"@{ast.unparse(decorator)}")
+                bases = [ast.unparse(base) for base in node.bases]
+                bases.extend(f"{keyword.arg}={ast.unparse(keyword.value)}" for keyword in node.keywords)
+                suffix = f"({', '.join(bases)})" if bases else ""
+                add(node.lineno, depth, f"class {node.name}{suffix}:")
+                visit(node.body, depth + 1)
+            elif depth == 0 and isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                names = [ast.unparse(target) for target in targets if isinstance(target, (ast.Name, ast.Attribute))]
+                if names:
+                    annotation = f": {ast.unparse(node.annotation)}" if isinstance(node, ast.AnnAssign) else ""
+                    add(node.lineno, depth, f"{', '.join(names)}{annotation}")
+
+    try:
+        visit(tree.body)
+    except (RecursionError, ValueError):
+        return None
+    return outline
+
+
+_GENERIC_DECLARATION = re.compile(
+    r"^\s*(?:(?:export|declare|default|public|private|protected|static|abstract)\s+)*"
+    r"(?:import\b|(?:async\s+)?function\b|class\b|interface\b|type\b|enum\b|namespace\b|"
+    r"(?:const|let|var)\s+[A-Za-z_$][\w$]*(?:\s*[:=]|\s*$))"
+)
+
+
+def _generic_outline(lines: list[str]) -> list[str]:
+    limit = min(MAX_OUTLINE_LINES, MAX_FILE_LINES)
+    declarations = [
+        f"L{index} {_compact_outline_line(line)}"
+        for index, line in enumerate(lines, 1)
+        if line == line.lstrip() and _GENERIC_DECLARATION.match(line)
+    ]
+    if declarations:
+        imports = [line for line in declarations if re.match(r"^L\d+ import\b", line)]
+        non_imports = [line for line in declarations if line not in imports]
+        return (imports[:MAX_OUTLINE_IMPORT_LINES] + non_imports)[:limit]
+    return [f"L{index} {_compact_outline_line(line)}" for index, line in enumerate(lines, 1) if line.strip()][:limit]
+
+
+def _read_source_outline(path: Path) -> tuple[list[str], str, int, int, str]:
+    """Read an allowed-size source and return a deterministic structural outline."""
+    hasher = hashlib.sha256()
+    raw_parts: list[bytes] = []
+    total_lines = 0
+    total_bytes = 0
+    with path.open("rb") as handle:
+        for raw_line in handle:
+            total_bytes += len(raw_line)
+            if total_bytes > MAX_SCAN_BYTES:
+                _raise("file_too_large", f"file exceeds scan limit: {path}")
+            hasher.update(raw_line)
+            total_lines += 1
+            if total_bytes <= MAX_FILE_BYTES:
+                raw_parts.append(raw_line)
+    if total_bytes > MAX_FILE_BYTES:
+        _raise("file_too_large", f"file exceeds byte limit: {path}")
+
+    text = b"".join(raw_parts).decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    python_outline = _python_outline(text) if path.suffix.lower() == ".py" else None
+    return python_outline if python_outline is not None else _generic_outline(lines), hasher.hexdigest(), total_lines, total_bytes, "python_ast" if python_outline is not None else "generic"
+
+
 def _read_selected_source(
     path: Path,
     *,
@@ -279,18 +386,23 @@ def inspect_sources(
             selected_start, selected_end = 1, 1
             selected_symbol = None
         else:
-            try:
-                selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
-                    resolved, symbol=symbol, start_line=start_line, end_line=end_line
-                )
-                symbol_matched = symbol_matched or bool(symbol)
-            except InspectionError as exc:
-                if exc.code != "symbol_not_found" or start_line is not None or end_line is not None:
-                    raise
-                selected_symbol = None
-                selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
-                    resolved, symbol=None, start_line=None, end_line=None
-                )
+            outline_format: str | None = None
+            if symbol is None and start_line is None and end_line is None:
+                selected_lines, fingerprint, line_count, source_bytes, outline_format = _read_source_outline(resolved)
+                selected_start, selected_end = 1, line_count
+            else:
+                try:
+                    selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
+                        resolved, symbol=symbol, start_line=start_line, end_line=end_line
+                    )
+                    symbol_matched = symbol_matched or bool(symbol)
+                except InspectionError as exc:
+                    if exc.code != "symbol_not_found" or start_line is not None or end_line is not None:
+                        raise
+                    selected_symbol = None
+                    selected_lines, selected_start, selected_end, fingerprint, line_count, source_bytes = _read_selected_source(
+                        resolved, symbol=None, start_line=None, end_line=None
+                    )
         selected_bytes = len("\n".join(selected_lines).encode("utf-8"))
         total_bytes += selected_bytes
         if total_bytes > MAX_TOTAL_BYTES:
@@ -309,6 +421,16 @@ def inspect_sources(
                 }
             )
         else:
+            selection: dict[str, object]
+            if outline_format:
+                selection = {"mode": "outline", "format": outline_format, "symbol": None}
+            else:
+                selection = {
+                    "mode": "source",
+                    "symbol": selected_symbol,
+                    "start_line": selected_start,
+                    "end_line": selected_end,
+                }
             entries.append(
                 {
                     "path": safe_relpath(resolved, root),
@@ -317,12 +439,7 @@ def inspect_sources(
                     "line_count": len(selected_lines),
                     "source_line_count": line_count,
                     "fingerprint": fingerprint,
-                    "selection": {
-                        "mode": "source",
-                        "symbol": selected_symbol,
-                        "start_line": selected_start,
-                        "end_line": selected_end,
-                    },
+                    "selection": selection,
                     "content": "\n".join(selected_lines),
                 }
             )

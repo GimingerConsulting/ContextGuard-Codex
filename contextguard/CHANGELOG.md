@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1
+
+- Changed default source inspection from a raw first-200-line read to a deterministic structural outline, following the token-budgeted repository-map pattern used by mature coding agents.
+- Added Python AST outlines and bounded cross-language declaration outlines with import prioritization, per-file line budgets and single-line truncation.
+- Kept exact `--symbol` and line-range reads unchanged so compact orientation never replaces required source evidence.
+- Reduced the measured three-file large-repository inspection from 1,942 to 938 visible tokens (61.07%) while preserving successful command execution; full raw source remains available through exact follow-up inspection.
+- Standardized the package and plugin version as plain `0.9.1` without a date-based build suffix.
+
 ## 0.9.0 efficiency extension (2026-07-11)
 
 - Added task-conditioned evidence packets with explicit-file ranking, bounded relevant excerpts, hashes and likely-test handles.
