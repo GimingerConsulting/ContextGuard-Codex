@@ -480,3 +480,17 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Found that the public hero still uses older 33.8% / 98.3% figures and that multiple benchmark cards currently render zero values; animated headings also remained scrambled in the rendered page during inspection.
 - Added `docs/WEBSITE_BENCHMARK_2026-07-12.md` with copy-ready headline, metric cards, comparison table, methodology, plain-language explanation, capacity equivalents, limitations, and evidence pointers.
 - Kept measured reductions separate from extrapolation: 1.74x total-input capacity and 2.64x uncached-input capacity are same-workload equivalents, not guaranteed Codex subscription multipliers.
+
+## 2026-07-12 — Balanced ingestion, silent hooks, and counterbalanced A/B
+
+- Research: combined TokenPilot's ingestion-aware stable-prefix strategy, Complexity Trap observation masking, OpenCode DCP duplicate suppression, Aider bounded repository mapping, SWE-agent typed ACI observations, and OpenAI exact-prefix caching guidance.
+- Cached-input fix: reduced the session gate from 739 to 171 estimated tokens (76.9%) while continuing to persist the complete repository context map for exact retrieval.
+- Uncached-input fix: allowed `PreToolUse` rewrites no longer inject advisory prose; irrelevant user prompts emit no ContextGuard payload; prompt-conditioned task evidence uses a balanced 320-token ceiling after a 180-token experiment caused extra inspections.
+- Output fix: successful validation output now uses a typed one-line `ContextGuard PASS` codec. A deterministic 4,710-byte passing transcript produced 121 visible bytes while the exact output remained archived.
+- Measurement fix: added counterbalanced RAW-first and ContextGuard-first execution order to the real Codex harness. Acceptance now also requires positive cached-input and model-output reductions.
+- Rejected experiment: the 180-token evidence variant remained same-quality and reduced total/cached/tool/output measures, but needed 19 commands and 8 inspections and saved only 1.37% uncached input, below the 5% gate. It was not selected.
+- Validation: focused suites passed 61/61 and 36/36; full suite passed 212/212 before the final benchmark-harness assertions, which then passed 4/4.
+- Real A/B pair 1 (RAW first): accepted, same quality, 144 hidden tests per arm; total input -7.08%, cached input -4.61%, uncached input -26.28%, model output -20.89%, tool output -55.02%, commands -44.83%, elapsed -16.29%.
+- Real A/B pair 2 (ContextGuard first): accepted, same hidden quality, 144 hidden tests per arm; total input -20.55%, cached input -17.50%, uncached input -44.25%, model output -11.35%, tool output -31.98%, commands -37.93%, elapsed -18.64%.
+- Counterbalanced median: total input -13.82%, cached input -11.05%, uncached input -35.27%, model output -16.12%, tool output -43.50%, commands -41.38%, elapsed -17.46%. Reasoning tokens increased 26.59% and are reported separately.
+- Sources: https://arxiv.org/abs/2606.17016, https://arxiv.org/abs/2508.21433, https://github.com/Opencode-DCP/opencode-dynamic-context-pruning, https://aider.chat/docs/repomap.html, https://swe-agent.com/0.7/background/aci/, https://openai.com/index/api-prompt-caching/

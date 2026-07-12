@@ -50,6 +50,17 @@ def test_hook_json_input_output(tmp_path: Path):
     assert output["hookEventName"] == "PreToolUse"
     assert output["permissionDecision"] == "allow"
     assert "/scripts/contextguard" in output["updatedInput"]["command"]
+    assert "additionalContext" not in output
+
+
+def test_allowed_pre_tool_advice_is_recorded_but_not_injected(tmp_path: Path):
+    run_hook("session_start.py", {}, tmp_path)
+    result = run_hook(
+        "pre_tool_use.py",
+        {"tool_name": "Bash", "tool_input": {"command": "pytest -q"}},
+        tmp_path,
+    )
+    assert "additionalContext" not in result["hookSpecificOutput"]
 
 
 def test_python_module_pytest_pipeline_is_rewritten(tmp_path: Path):
@@ -103,7 +114,7 @@ def test_session_start_initialized_injects_session_gate(tmp_path: Path):
     state.mkdir()
     (state / "manifest.json").write_text("{}")
     result = run_hook("session_start.py", {}, tmp_path)
-    context = result["hookSpecificOutput"]["additionalContext"]
+    context = result.get("hookSpecificOutput", {}).get("additionalContext", "")
     assert "session gate" in context.lower()
     assert "capture" in context
 
@@ -275,9 +286,7 @@ def test_user_prompt_context_uses_codex_hook_envelope(tmp_path: Path):
     state.mkdir()
     (state / "manifest.json").write_text("{}")
     result = run_hook("user_prompt_submit.py", {"prompt": "fix billing"}, tmp_path)
-    output = result["hookSpecificOutput"]
-    assert output["hookEventName"] == "UserPromptSubmit"
-    assert "ContextGuard" in output["additionalContext"]
+    assert result == {}
 
 
 def test_user_prompt_does_not_repeat_session_start_resume_context(tmp_path: Path):
@@ -289,7 +298,7 @@ def test_user_prompt_does_not_repeat_session_start_resume_context(tmp_path: Path
     persist_session_capsule(tmp_path, {"current_objective": "old objective", "next_action": "old next action"})
 
     result = run_hook("user_prompt_submit.py", {"prompt": "fix billing"}, tmp_path)
-    context = result["hookSpecificOutput"]["additionalContext"]
+    context = result.get("hookSpecificOutput", {}).get("additionalContext", "")
 
     assert "old objective" not in context
     assert "old next action" not in context
@@ -313,6 +322,7 @@ def test_user_prompt_injects_bounded_evidence_for_explicit_ticket(tmp_path: Path
 
     assert "ContextGuard task evidence" in context
     assert "SUPPORT_TICKET.md sha=" in context
+    assert len(context.encode()) <= 1280
 
 
 def test_user_prompt_adds_single_worker_routing_for_bounded_feature(tmp_path: Path):

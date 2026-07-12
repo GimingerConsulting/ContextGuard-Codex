@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from contextguard.output_capture import _prune_archives, _run_bounded
+from contextguard.output_capture import _prune_archives, _render_summary, _run_bounded
 
 
 def test_run_bounded_retains_head_and_tail(tmp_path: Path, monkeypatch):
@@ -52,3 +52,16 @@ def test_prune_archives_caps_command_groups(tmp_path: Path, monkeypatch):
 
     assert removed == 6
     assert len(list(tmp_path.glob("command-*"))) == 6
+
+
+def test_passing_test_summary_uses_one_line_codec():
+    rendered = _render_summary([], {
+        "summary_path": "/tmp/result.json",
+        "display_summary_path": ".contextguard/tmp/result.json",
+        "exit_code": 0,
+        "test_summary": "210 passed in 88.85s",
+        "evidence": {"outcome": "passed"},
+    })
+
+    assert rendered.startswith("ContextGuard PASS | 210 passed")
+    assert len(rendered.encode()) < 120

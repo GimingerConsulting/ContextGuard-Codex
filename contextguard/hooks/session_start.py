@@ -20,7 +20,7 @@ if (state_dir(info.root) / "manifest.json").exists():
     flush_session_to_lifetime(info.root)
     reset_session_state(info.root)
     gate = build_session_gate(info.root)
-    prior = render_cross_session_brief(info.root)
+    prior = render_cross_session_brief(info.root, token_limit=80)
     context = "\n".join(part for part in (prior, gate) if part)
     write_event(
         {

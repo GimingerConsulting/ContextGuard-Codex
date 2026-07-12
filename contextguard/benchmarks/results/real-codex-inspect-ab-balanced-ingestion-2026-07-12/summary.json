@@ -1,0 +1,170 @@
+{
+  "accepted": true,
+  "benchmark": "real-codex-bounded-source-inspector-ab",
+  "contextguard": {
+    "cached_input_tokens": 248960,
+    "capture_runner_used": true,
+    "codex_exit_code": 0,
+    "command_evidence": {
+      "command_executions": 16,
+      "inspect_calls": 5,
+      "successful_spawn_count": 0
+    },
+    "command_executions": 16,
+    "commands": [
+      "/bin/zsh -lc 'pwd && ls'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard inspect SUPPORT_TICKET.md CHANGELOG.md AGENTS.md'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard capture -- python3 -m pytest -q'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard capture -- find . -maxdepth 3 -type f | sort'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard capture -- rg -n \"reserve|reservation|checkout|stock|legacy|warehouse|quantity|available\" .'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard inspect inventory/service.py inventory/migration.py tests/test_public_behavior.py docs/ARCHITECTURE.md'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard inspect inventory/api.py inventory/audit.py pyproject.toml scenario.json'",
+      "/bin/zsh -lc \".contextguard/bin/contextguard capture -- python3 - <<'PY'\nfrom inventory.service import InventoryService\ns = InventoryService([{'sku':'sku-19','quantity':1}])\nprint(s.reserve('sku-19', 1, 'req-125'))\nprint(s.reserve('sku-19', 1, 'req-125'))\nprint(s.records['sku-19'])\nPY\"",
+      "/bin/zsh -lc '.contextguard/bin/contextguard inspect scenario.json data/production.log --start-line 1 --end-line 40'",
+      "/bin/zsh -lc \".contextguard/bin/contextguard capture -- python3 - <<'PY'\nfrom inventory.service import InventoryService\ns = InventoryService([{'sku':'sku-19','quantity':1}])\nprint(s.reserve('sku-19', 1, 'req-125'))\nprint(s.reserve('sku-19', 1, 'req-125'))\nprint(s.records['sku-19'])\nPY\"",
+      "/bin/zsh -lc '.contextguard/bin/contextguard capture -- python3 -m pytest -q tests/test_reservation_regressions.py'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard capture -- python3 -m pytest -q'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard capture -- git diff -- inventory/service.py inventory/migration.py inventory/api.py tests/test_reservation_regressions.py CHANGELOG.md'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard inspect inventory/service.py inventory/migration.py inventory/api.py tests/test_reservation_regressions.py'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard capture -- python3 -m pytest -q'",
+      "/bin/zsh -lc '.contextguard/bin/contextguard capture -- git status --short'"
+    ],
+    "diff_bytes": 3979,
+    "elapsed_seconds": 124.061,
+    "exact_baseline_command": false,
+    "file_changes": 2,
+    "final_response": "Fixed the reservation bug.\n\nChanged files:\n- [inventory/migration.py](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-contextguard-of0k2ewl/contextguard-project/inventory/migration.py:1): legacy `quantity` now becomes available stock; migrated records get `reserved` and `version`.\n- [inventory/service.py](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-contextguard-of0k2ewl/contextguard-project/inventory/service.py:1): reservations are atomic, reject insufficient stock without decrementing, track reserved/version, and make supplied `request_id`s idempotent.\n- [inventory/api.py](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-contextguard-of0k2ewl/contextguard-project/inventory/api.py:1): missing request ids remain non-idempotent legacy calls instead of all sharing `\"legacy\"`.\n- [tests/test_reservation_regressions.py](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-contextguard-of0k2ewl/contextguard-project/tests/test_reservation_regressions.py:1): added focused coverage for migration, retry idempotency, missing request ids, insufficient stock, and parallel checkout.\n- [CHANGELOG.md](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-contextguard-of0k2ewl/contextguard-project/CHANGELOG.md:3): documented the fix.\n\nValidation:\n- Required pre-edit baseline: `python3 -m pytest -q` \u2192 3 passed.\n- Targeted regression tests: `python3 -m pytest -q tests/test_reservation_regressions.py` \u2192 5 passed.\n- Final full suite: `python3 -m pytest -q` \u2192 8 passed.\n\nI also reproduced the pre-fix failure path: legacy quantity was imported as zero, and retrying the same request pushed stock further negative while returning success. The fixed path now returns the same successful result on retry and leaves stock at zero.",
+    "final_response_bytes": 1890,
+    "input_tokens": 273651,
+    "optimized": true,
+    "output_tokens": 5442,
+    "reasoning_output_tokens": 1191,
+    "repository_hash": "2d4039ccb554fb5b28cfbc6dcb695a5876c03077ea4cbf04de253b96c60ac05e",
+    "stderr_bytes": 0,
+    "timed_out": false,
+    "tool_output_bytes": 20311,
+    "uncached_input_tokens": 24691,
+    "validation": {
+      "canonical_exit_code": 0,
+      "canonical_output": {
+        "ok": true,
+        "quantity": 3,
+        "remaining": 7,
+        "sku": "widget"
+      },
+      "changelog_updated": true,
+      "collected_tests": 147,
+      "concurrency_output": {
+        "available": 0,
+        "reserved": 10,
+        "successful": 10,
+        "version": 10
+      },
+      "exit_code": 0,
+      "failed_tests": 0,
+      "hidden_failed_tests": 0,
+      "hidden_passed_tests": 144,
+      "passed_tests": 152
+    }
+  },
+  "limitations": [
+    "A single pair proves the command path and quality gate but remains subject to model stochasticity.",
+    "The arms run RAW then ContextGuard; repeated counterbalanced pairs are needed for population-level claims.",
+    "Codex subscription quota accounting is not exposed by the CLI."
+  ],
+  "paired_efficiency": {
+    "command_reduction_percent": 44.83,
+    "commands_below_paired_raw": true,
+    "meets_tool_output_threshold": true,
+    "meets_uncached_input_threshold": true,
+    "tool_output_reduction_percent": 55.02,
+    "uncached_input_reduction_percent": 26.28
+  },
+  "previous_contextguard_command_baseline": 34,
+  "raw": {
+    "cached_input_tokens": 260992,
+    "capture_runner_used": false,
+    "codex_exit_code": 0,
+    "command_evidence": {
+      "command_executions": 29,
+      "inspect_calls": 0,
+      "successful_spawn_count": 0
+    },
+    "command_executions": 29,
+    "commands": [
+      "/bin/zsh -lc \"pwd && rg --files -g 'SUPPORT_TICKET.md' -g 'CHANGELOG.md' -g 'README*' -g 'CONTRIBUTING*' -g 'pyproject.toml' -g 'pytest.ini' -g 'tox.ini' -g 'setup.cfg'\"",
+      "/bin/zsh -lc 'git status --short'",
+      "/bin/zsh -lc \"sed -n '1,260p' pyproject.toml\"",
+      "/bin/zsh -lc \"sed -n '1,220p' SUPPORT_TICKET.md\"",
+      "/bin/zsh -lc \"sed -n '1,220p' CHANGELOG.md\"",
+      "/bin/zsh -lc 'rg --files'",
+      "/bin/zsh -lc 'python3 -m pytest -q'",
+      "/bin/zsh -lc \"sed -n '1,260p' inventory/migration.py\"",
+      "/bin/zsh -lc \"sed -n '1,260p' inventory/api.py\"",
+      "/bin/zsh -lc \"sed -n '1,260p' inventory/service.py\"",
+      "/bin/zsh -lc \"sed -n '1,260p' tests/test_public_behavior.py\"",
+      "/bin/zsh -lc \"sed -n '1,240p' data/warehouse-export.jsonl\"",
+      "/bin/zsh -lc \"sed -n '1,240p' legacy-db.json\"",
+      "/bin/zsh -lc \"sed -n '1,240p' scenario.json\"",
+      "/bin/zsh -lc \"sed -n '1,260p' inventory/cli.py\"",
+      "/bin/zsh -lc \"sed -n '1,240p' data/production.log\"",
+      "/bin/zsh -lc \"sed -n '1,220p' inventory/audit.py\"",
+      "/bin/zsh -lc \"python3 - <<'PY'\nfrom inventory.migration import migrate_record\nprint(migrate_record({'sku': 'legacy', 'quantity': 7, 'schema_version': 1}))\nPY\"",
+      "/bin/zsh -lc \"python3 - <<'PY'\nfrom inventory.service import InventoryService\ns = InventoryService([{'sku': 'widget', 'quantity': 5}])\nprint(s.reserve('widget', 3, 'req-1'))\nprint(s.reserve('widget', 3, 'req-1'))\nprint(s.records['widget'])\nPY\"",
+      "/bin/zsh -lc 'python3 -m inventory.cli checkout scenario.json'",
+      "/bin/zsh -lc \"sed -n '1,260p' inventory/service.py\"",
+      "/bin/zsh -lc \"sed -n '1,260p' tests/test_public_behavior.py\"",
+      "/bin/zsh -lc \"sed -n '1,120p' inventory/api.py && sed -n '1,120p' inventory/migration.py && sed -n '1,80p' CHANGELOG.md\"",
+      "/bin/zsh -lc \"python3 - <<'PY'\nfrom inventory.service import InventoryService\ns = InventoryService([{'sku': 'widget', 'quantity': 5}])\nprint(s.reserve('widget', 3, 'req-1'))\nprint(s.reserve('widget', 3, 'req-1'))\nprint(s.records['widget'])\nPY\"",
+      "/bin/zsh -lc 'python3 -m inventory.cli checkout scenario.json'",
+      "/bin/zsh -lc 'python3 -m pytest -q'",
+      "/bin/zsh -lc 'git diff -- inventory/migration.py inventory/api.py inventory/service.py tests/test_public_behavior.py CHANGELOG.md'",
+      "/bin/zsh -lc 'git status --short'",
+      "/bin/zsh -lc 'python3 -m inventory.cli migrate legacy-db.json'"
+    ],
+    "diff_bytes": 6485,
+    "elapsed_seconds": 148.206,
+    "exact_baseline_command": true,
+    "file_changes": 2,
+    "final_response": "Implemented the fix for INC-4821.\n\nChanged:\n- [inventory/migration.py](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-raw-wpiv_f7h/raw-project/inventory/migration.py): legacy `quantity` is preserved as available stock, with `reserved` and `version` initialized.\n- [inventory/service.py](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-raw-wpiv_f7h/raw-project/inventory/service.py): reservations are now locked, idempotent by `request_id`, reject insufficient stock, and honor `expected_version`.\n- [inventory/api.py](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-raw-wpiv_f7h/raw-project/inventory/api.py): passes `expected_version` through without breaking request-id-less legacy calls.\n- [tests/test_public_behavior.py](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-raw-wpiv_f7h/raw-project/tests/test_public_behavior.py): added focused regression coverage for migration, retry idempotency, insufficient stock, stale version rejection, and parallel checkout.\n- [CHANGELOG.md](/private/var/folders/1h/bcpfd4vj5lj3zzt50w1v4wjr0000gn/T/contextguard-inspect-ab-raw-wpiv_f7h/raw-project/CHANGELOG.md): documented the fix.\n\nValidation:\n- Required pre-edit baseline: `python3 -m pytest -q` \u2192 `3 passed`\n- Final public suite: `python3 -m pytest -q` \u2192 `8 passed`\n- Reproduced ticket scenario before fix: `remaining: -3`\n- Confirmed after fix: checkout scenario returns `remaining: 7`; duplicate `request_id` does not reserve twice; legacy migration returns `available: 10`.",
+    "final_response_bytes": 1608,
+    "input_tokens": 294487,
+    "optimized": false,
+    "output_tokens": 6879,
+    "reasoning_output_tokens": 1144,
+    "repository_hash": "eb6704abae5fa922137dc2ac01689e1c349f0d6a2b5e6b3b9aa536c43a5426ea",
+    "stderr_bytes": 0,
+    "timed_out": false,
+    "tool_output_bytes": 45160,
+    "uncached_input_tokens": 33495,
+    "validation": {
+      "canonical_exit_code": 0,
+      "canonical_output": {
+        "ok": true,
+        "quantity": 3,
+        "remaining": 7,
+        "sku": "widget",
+        "version": 1
+      },
+      "changelog_updated": true,
+      "collected_tests": 147,
+      "concurrency_output": {
+        "available": 0,
+        "reserved": 10,
+        "successful": 10,
+        "version": 10
+      },
+      "exit_code": 0,
+      "failed_tests": 0,
+      "hidden_failed_tests": 0,
+      "hidden_passed_tests": 144,
+      "passed_tests": 152
+    }
+  },
+  "rejection_reasons": {
+    "contextguard": null,
+    "raw": null
+  },
+  "same_quality": true,
+  "valid_run": true
+}

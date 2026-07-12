@@ -103,14 +103,13 @@ def test_capture_compacts_medium_noisy_test_output(tmp_path: Path):
     assert len(result.stdout.encode()) < 1800
 
 
-def test_capture_runner_emits_budget_advice_without_hooks(tmp_path: Path):
+def test_capture_runner_does_not_inject_budget_advice(tmp_path: Path):
     run_cli(["init"], tmp_path)
     command = ["capture", "--", sys.executable, "-m", "pytest", "-q"]
     run_cli(command, tmp_path)
     second = run_cli(command, tmp_path)
 
-    assert "two full validations have now run" in second.stdout
-    assert "targeted tests" in second.stdout
+    assert "two full validations have now run" not in second.stdout
 
 
 def test_capture_references_repeated_equivalent_evidence(tmp_path: Path):

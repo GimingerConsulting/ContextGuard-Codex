@@ -13,6 +13,8 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 PREVIOUS_CONTEXTGUARD_COMMAND_BASELINE = 34
 MIN_UNCACHED_INPUT_REDUCTION_PERCENT = 5.0
 MIN_TOOL_OUTPUT_REDUCTION_PERCENT = 10.0
+MIN_CACHED_INPUT_REDUCTION_PERCENT = 0.0
+MIN_OUTPUT_REDUCTION_PERCENT = 0.0
 
 
 def rejection_reason(events_path: Path) -> str | None:
@@ -34,14 +36,22 @@ def paired_efficiency(raw: dict, optimized: dict) -> dict[str, object]:
     raw_commands = raw["command_evidence"]["command_executions"]
     optimized_commands = optimized["command_evidence"]["command_executions"]
     uncached_reduction = reduction_percent(raw["uncached_input_tokens"], optimized["uncached_input_tokens"])
+    cached_reduction = reduction_percent(raw["cached_input_tokens"], optimized["cached_input_tokens"])
+    output_reduction = reduction_percent(raw["output_tokens"], optimized["output_tokens"])
     tool_reduction = reduction_percent(raw["tool_output_bytes"], optimized["tool_output_bytes"])
     return {
         "uncached_input_reduction_percent": uncached_reduction,
+        "cached_input_reduction_percent": cached_reduction,
+        "output_reduction_percent": output_reduction,
         "tool_output_reduction_percent": tool_reduction,
         "command_reduction_percent": reduction_percent(raw_commands, optimized_commands),
         "commands_below_paired_raw": optimized_commands < raw_commands,
         "meets_uncached_input_threshold": uncached_reduction is not None
         and uncached_reduction >= MIN_UNCACHED_INPUT_REDUCTION_PERCENT,
+        "meets_cached_input_threshold": cached_reduction is not None
+        and cached_reduction > MIN_CACHED_INPUT_REDUCTION_PERCENT,
+        "meets_output_threshold": output_reduction is not None
+        and output_reduction > MIN_OUTPUT_REDUCTION_PERCENT,
         "meets_tool_output_threshold": tool_reduction is not None
         and tool_reduction >= MIN_TOOL_OUTPUT_REDUCTION_PERCENT,
     }
@@ -78,10 +88,15 @@ def command_evidence(path: Path) -> dict[str, int]:
     }
 
 
-def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
+def execute_ab(
+    output_dir: Path,
+    *,
+    timeout: int = 1800,
+    order: tuple[str, str] = ("raw", "contextguard"),
+) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     results = {}
-    for kind in ("raw", "contextguard"):
+    for kind in order:
         with tempfile.TemporaryDirectory(prefix=f"contextguard-inspect-ab-{kind}-") as tmp:
             results[kind] = _run_one(kind, Path(tmp), output_dir / kind, timeout)
         results[kind]["command_evidence"] = command_evidence(output_dir / kind / "events.jsonl")
@@ -118,6 +133,8 @@ def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
         evidence["successful_spawn_count"] == 0,
         efficiency["commands_below_paired_raw"],
         efficiency["meets_uncached_input_threshold"],
+        efficiency["meets_cached_input_threshold"],
+        efficiency["meets_output_threshold"],
         efficiency["meets_tool_output_threshold"],
     ])
     result = {
@@ -131,7 +148,7 @@ def execute_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
         **results,
         "limitations": [
             "A single pair proves the command path and quality gate but remains subject to model stochasticity.",
-            "The arms run RAW then ContextGuard; repeated counterbalanced pairs are needed for population-level claims.",
+            f"Arm order: {' then '.join(order)}; repeated counterbalanced pairs are needed for population-level claims.",
             "Codex subscription quota accounting is not exposed by the CLI.",
         ],
     }
@@ -149,10 +166,16 @@ def main(argv: list[str] | None = None) -> int:
         default=PLUGIN_ROOT / "benchmarks/results/real-codex-inspect-ab-2026-06-15",
     )
     parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument(
+        "--order",
+        choices=("raw-first", "contextguard-first"),
+        default="raw-first",
+    )
     args = parser.parse_args(argv)
     if not args.run:
         parser.error("choose --run")
-    result = execute_ab(args.output_dir, timeout=args.timeout)
+    order = ("raw", "contextguard") if args.order == "raw-first" else ("contextguard", "raw")
+    result = execute_ab(args.output_dir, timeout=args.timeout, order=order)
     print(json.dumps({
         "accepted": result["accepted"],
         "valid_run": result["valid_run"],

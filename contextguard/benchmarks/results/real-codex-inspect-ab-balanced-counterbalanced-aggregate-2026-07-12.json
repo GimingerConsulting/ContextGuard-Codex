@@ -1,0 +1,30 @@
+{
+  "benchmark": "real-codex-bounded-source-inspector-counterbalanced-aggregate",
+  "date": "2026-07-12",
+  "model": "gpt-5.5",
+  "reasoning_effort": "medium",
+  "valid_pairs": 2,
+  "accepted_pairs": 2,
+  "same_hidden_quality": true,
+  "hidden_tests_passed_each_arm": 144,
+  "pair_artifacts": [
+    "real-codex-inspect-ab-balanced-ingestion-2026-07-12/summary.json",
+    "real-codex-inspect-ab-balanced-ingestion-counterbalanced-2026-07-12/summary.json"
+  ],
+  "median_reduction_percent": {
+    "total_input_tokens": 13.82,
+    "cached_input_tokens": 11.05,
+    "uncached_input_tokens": 35.27,
+    "model_output_tokens": 16.12,
+    "tool_output_bytes": 43.50,
+    "commands": 41.38,
+    "elapsed_seconds": 17.46
+  },
+  "median_reasoning_token_change_percent": 26.59,
+  "limitations": [
+    "Two counterbalanced pairs reduce order bias but remain a small sample.",
+    "Model execution is stochastic and task-specific.",
+    "Reasoning tokens increased even though total model output tokens decreased.",
+    "Codex subscription quota accounting is not exposed by the CLI."
+  ]
+}

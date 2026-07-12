@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from _bootstrap import read_event, write_event
 from contextguard.config import state_dir
-from contextguard.context_capsule import build_capsule
 from contextguard.database import connect, increment
 from contextguard.model_router import route_task
 from contextguard.project import detect_project
@@ -33,8 +32,7 @@ if (state_dir(info.root) / "manifest.json").exists() and prompt:
     parts = [
         part
         for part in (
-            build_capsule(info.root, prompt, token_limit=140),
-            build_task_evidence(info.root, prompt, token_limit=420, classification=classification),
+            build_task_evidence(info.root, prompt, token_limit=320, classification=classification),
         )
         if part
     ]
@@ -47,13 +45,16 @@ if (state_dir(info.root) / "manifest.json").exists() and prompt:
     context = "\n".join(parts)
     conn = connect(state_dir(info.root) / "index.sqlite")
     increment(conn, "context_bytes_added", len(context.encode()))
-    write_event(
-        {
-            "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "additionalContext": context,
+    if context:
+        write_event(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": context,
+                }
             }
-        }
-    )
+        )
+    else:
+        write_event({})
 else:
     write_event({})

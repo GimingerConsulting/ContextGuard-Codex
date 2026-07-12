@@ -174,7 +174,7 @@ def evaluate_hooks(plugin: Path, project: Path, timing_samples: int) -> tuple[di
     visible_tokens = token_count(visible)
     automatic = {
         "session_start": bool(session.get("hookSpecificOutput", {}).get("additionalContext")),
-        "user_prompt_submit": bool(
+        "user_prompt_submit": prompt == {} or bool(
             prompt.get("hookSpecificOutput", {}).get("additionalContext")
         ),
         "pre_tool_use": "/scripts/contextguard" in json.dumps(pre_tool),

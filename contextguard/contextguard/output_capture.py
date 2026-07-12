@@ -124,6 +124,7 @@ def _is_noisy_medium_output(summary: dict) -> bool:
 
 
 def _render_summary(argv: list[str], summary: dict) -> str:
+    archive = summary.get("display_summary_path", summary["summary_path"])
     repeated = summary.get("repeated_evidence")
     if repeated and repeated.get("repeated"):
         rendered = (
@@ -135,9 +136,17 @@ def _render_summary(argv: list[str], summary: dict) -> str:
             rendered += "failed_tests:\n" + "\n".join(
                 f"- {name}" for name in summary["failed_tests"][:3]
             ) + "\n"
-        if summary.get("optimization_advice"):
-            rendered += f"optimization_advice: {summary['optimization_advice']}\n"
-        return rendered + f"full_output: {summary.get('display_summary_path', summary['summary_path'])}\n"
+        return rendered + f"archive: {archive}\n"
+    outcome = (summary.get("evidence") or {}).get("outcome")
+    if summary.get("exit_code") == 0 and outcome == "passed":
+        return f"ContextGuard PASS | {summary['test_summary']} | archive: {archive}\n"
+    if (
+        summary.get("exit_code") == 0
+        and not summary.get("errors")
+        and not summary.get("warnings")
+        and not summary.get("signal_lines")
+    ):
+        return f"ContextGuard OK | {summary['raw_bytes']}B archived | archive: {archive}\n"
     lines = [
         "ContextGuard capture summary",
         f"exit_code: {summary['exit_code']}",
@@ -160,8 +169,6 @@ def _render_summary(argv: list[str], summary: dict) -> str:
     if summary.get("stack_traces"):
         lines.append("stack_trace:")
         lines.append(summary["stack_traces"][0])
-    if summary.get("optimization_advice"):
-        lines.append(f"optimization_advice: {summary['optimization_advice']}")
     signal_lines = summary.get("signal_lines") or []
     if signal_lines:
         lines.append("signal:")
@@ -177,7 +184,7 @@ def _render_summary(argv: list[str], summary: dict) -> str:
     expand_directive = summary.get("expand_directive")
     if expand_directive:
         lines.append(expand_directive)
-    lines.append(f"full_output: {summary.get('display_summary_path', summary['summary_path'])}")
+    lines.append(f"archive: {archive}")
     return "\n".join(lines) + "\n"
 
 

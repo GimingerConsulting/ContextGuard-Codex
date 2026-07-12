@@ -24,12 +24,11 @@ if command:
     if (state_dir(info.root) / "manifest.json").exists():
         record_hook(info.root, "PreToolUse")
         budget = evaluate_budget(info.root, command, enforce_capture_path=True)
-        advice = analyze_command(info.root, command)
-        budget_feedback = render_budget_feedback(budget)
-        if budget_feedback and advice:
-            advice = f"{budget_feedback}\n{advice}"
-        elif budget_feedback:
-            advice = budget_feedback
+        analyze_command(info.root, command)
+        advice = ""
+        # Advisory text added on every allowed command becomes permanent cached
+        # history. Keep allow-path rewrites silent; deny paths still explain the
+        # exact budget violation below.
     else:
         budget = None
         advice = ""
