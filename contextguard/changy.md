@@ -35,6 +35,13 @@
 - Repeated-output references are session-local and are disabled for truncated archives, preventing false exactness when only bounded head/tail bytes were retained.
 - Safe scalar facts intentionally exclude strings and sensitive key families; exact structured evidence still requires an explicit bounded follow-up when omitted values matter.
 
+### Release and installed-copy verification
+
+- Published release commit `82d8641` to `GimingerConsulting/ContextGuard-Codex` `main`.
+- Upgraded the configured `contextguard` Git marketplace and installed/enabled plain version `0.9.2` at `~/.codex/plugins/cache/contextguard/contextguard/0.9.2`.
+- Refreshed this repository through the installed 0.9.2 script. The stable project runtime matches the repository's new compactor and structured inspector byte-for-byte.
+- Installed-runtime smoke checks passed new Kubernetes capture routing and repetitive-log classification. `codex plugin list` confirms `contextguard@contextguard` is installed and enabled at version `0.9.2`.
+
 ## 0.9.1 Structural Source Outlines
 
 ### Problem
