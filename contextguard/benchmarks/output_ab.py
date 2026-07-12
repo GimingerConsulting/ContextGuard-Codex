@@ -60,11 +60,13 @@ def compare_output(raw_output: str, project: Path, *, timing_samples: int = 7) -
         result, elapsed = _run_hook(raw_output, project)
         hook_times.append(elapsed)
 
-    visible = result["reason"]
-    full_output_line = next(line for line in visible.splitlines() if line.startswith("full_output: "))
-    archived_path = Path(full_output_line.removeprefix("full_output: "))
-    if not archived_path.is_absolute():
-        archived_path = project / archived_path
+    archives = list((project / ".contextguard" / "tmp").glob("tool-output-*.txt"))
+    archived_path = max(archives, key=lambda path: path.stat().st_mtime_ns)
+    summary = json.loads(archived_path.with_suffix(".summary.json").read_text(encoding="utf-8"))
+    visible = "\n".join(
+        [summary.get("test_summary", ""), "failed_tests:"]
+        + list(summary.get("failed_tests", []))
+    )
     archived = archived_path.read_text(encoding="utf-8")
     raw_hash = hashlib.sha256(raw_output.encode()).hexdigest()
     archived_hash = hashlib.sha256(archived.encode()).hexdigest()

@@ -177,20 +177,18 @@ def test_status_reports_session_efficiency_metrics(tmp_path: Path):
 def test_post_tool_use_stores_large_output(tmp_path: Path):
     payload = {"tool_name": "Bash", "tool_response": "ERROR repeated failure\n" * 5000}
     result = run_hook("post_tool_use.py", payload, tmp_path)
-    assert result["decision"] == "block"
-    assert "full_output:" in result["reason"]
-    assert result["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+    assert result == {}
     assert list((tmp_path / ".contextguard" / "tmp").glob("tool-output-*.txt"))
     metrics = tmp_path / ".contextguard" / "tmp" / "hook-output-metrics.jsonl"
     record = json.loads(metrics.read_text().splitlines()[-1])
-    assert record["raw_bytes"] > record["model_visible_bytes"]
+    assert record["raw_bytes"] > 0
+    assert record["model_visible_bytes"] == 0
 
 
 def test_post_tool_use_compacts_noisy_medium_output(tmp_path: Path):
     payload = {"tool_name": "Bash", "tool_response": "FAILED test_case file.py:12 error\n" * 80}
     result = run_hook("post_tool_use.py", payload, tmp_path)
-    assert result["decision"] == "block"
-    assert len(result["reason"].encode()) < 2000
+    assert result == {}
 
 
 def test_post_tool_use_keeps_failed_test_names_visible(tmp_path: Path):
@@ -200,21 +198,21 @@ def test_post_tool_use_keeps_failed_test_names_visible(tmp_path: Path):
         + ["41 failed in 0.25s"]
     )
     result = run_hook("post_tool_use.py", {"tool_name": "Bash", "tool_response": output}, tmp_path)
-    assert "failed_tests:" in result["reason"]
-    assert "tests/test_orders.py::test_cap" in result["reason"]
-    assert "41 failed in 0.25s" in result["reason"]
+    assert result == {}
+    summaries = list((tmp_path / ".contextguard" / "tmp").glob("tool-output-*.summary.json"))
+    archived = json.loads(summaries[-1].read_text())
+    assert "tests/test_orders.py::test_cap" in archived["failed_tests"]
 
 
 def test_post_tool_use_references_repeated_large_evidence(tmp_path: Path):
     payload = {"tool_name": "Bash", "tool_response": "ERROR stable hook failure\n" * 5000}
 
-    first = run_hook("post_tool_use.py", payload, tmp_path)
-    second = run_hook("post_tool_use.py", payload, tmp_path)
-
-    assert "ERROR stable hook failure" in first["reason"]
-    assert "ContextGuard repeated evidence" in second["reason"]
-    assert "ERROR stable hook failure" not in second["reason"]
-    assert len(second["reason"].encode()) < len(first["reason"].encode())
+    assert run_hook("post_tool_use.py", payload, tmp_path) == {}
+    assert run_hook("post_tool_use.py", payload, tmp_path) == {}
+    summaries = sorted((tmp_path / ".contextguard" / "tmp").glob("tool-output-*.summary.json"))
+    repeated = json.loads(summaries[-1].read_text())["repeated_evidence"]
+    assert repeated["repeated"] is True
+    assert repeated["occurrences"] == 2
 
 
 def test_pre_compact_persists_compact_session_facts(tmp_path: Path):

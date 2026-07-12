@@ -99,16 +99,11 @@ if isinstance(output, str) and should_compact:
         )
     metrics_path = tmp / "hook-output-metrics.jsonl"
     with metrics_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"raw_bytes": raw_bytes, "model_visible_bytes": len(feedback.encode()), "compacted": True}) + "\n")
-    write_event(
-        {
-            "decision": "block",
-            "reason": feedback,
-            "hookSpecificOutput": {
-                "hookEventName": "PostToolUse",
-                "additionalContext": feedback,
-            },
-        }
-    )
+        handle.write(json.dumps({"raw_bytes": raw_bytes, "model_visible_bytes": 0, "compacted": True}) + "\n")
+    # PostToolUse runs after Codex has already ingested the original response.
+    # Injecting a second summary cannot replace that response; it only enlarges
+    # every later cached prefix. Archive silently and enforce reduction through
+    # PreToolUse command rewriting, where stdout can still be bounded at source.
+    write_event({})
 else:
     write_event({})

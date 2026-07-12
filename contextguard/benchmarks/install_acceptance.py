@@ -159,14 +159,14 @@ def evaluate_hooks(plugin: Path, project: Path, timing_samples: int) -> tuple[di
             {"tool_name": "Bash", "tool_response": raw_output},
         )
         hook_times.append(elapsed)
-    visible = post_tool.get("reason", "")
-    archived_line = next(
-        (line for line in visible.splitlines() if line.startswith("full_output: ")),
-        "",
+    archives = list((failing_project / ".contextguard" / "tmp").glob("tool-output-*.txt"))
+    archived_path = max(archives, key=lambda path: path.stat().st_mtime_ns)
+    summary_path = archived_path.with_suffix(".summary.json")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    visible = "\n".join(
+        [summary.get("test_summary", ""), "failed_tests:"]
+        + list(summary.get("failed_tests", []))
     )
-    archived_path = Path(archived_line.removeprefix("full_output: "))
-    if not archived_path.is_absolute():
-        archived_path = failing_project / archived_path
     archived = archived_path.read_text(encoding="utf-8")
     raw_hash = hashlib.sha256(raw_output.encode()).hexdigest()
     archived_hash = hashlib.sha256(archived.encode()).hexdigest()
@@ -178,7 +178,7 @@ def evaluate_hooks(plugin: Path, project: Path, timing_samples: int) -> tuple[di
             prompt.get("hookSpecificOutput", {}).get("additionalContext")
         ),
         "pre_tool_use": "/scripts/contextguard" in json.dumps(pre_tool),
-        "post_tool_use": post_tool.get("decision") == "block",
+        "post_tool_use": post_tool == {} and bool(archives),
     }
     equivalence = {
         "raw_exit_code": test_proc.returncode,
