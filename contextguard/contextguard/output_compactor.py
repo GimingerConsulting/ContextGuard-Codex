@@ -38,10 +38,10 @@ def _command_signal(lines: list[str], command: str, limit: int = 16) -> list[str
             line for line in lines
             if line.startswith("diff --git ") or line.startswith("@@ ") or re.search(r"\d+ files? changed", line)
         ]
-    elif re.search(r"(?:^|\s)(?:rg|grep|find|git status)(?:\s|$)", lowered):
+    elif re.search(r"(?:^|[\s'\"])(?:rg|grep|find|git status)(?:\s|$)", lowered):
         signal = [line for line in lines if line.strip()]
     elif re.search(
-        r"(?:^|\s)(?:cargo|docker|podman|kubectl|terraform|gradle|mvn|gh|go\s+(?:test|build|vet)|npm|pnpm|yarn|bun|ruff|mypy|tsc|eslint|vitest)(?:\s|$)",
+        r"(?:^|[\s'\"])(?:cargo|docker|podman|kubectl|terraform|gradle|mvn|gh|go\s+(?:test|build|vet)|npm|pnpm|yarn|bun|ruff|mypy|tsc|eslint|vitest)(?:\s|$)",
         lowered,
     ):
         nonempty = [line for line in lines if line.strip()]
@@ -112,7 +112,7 @@ def _output_kind(command: str, combined: str, lines: list[str], test_summary: st
         return "test"
     if _json_signal(combined):
         return "json"
-    if re.search(r"(?:^|\s)(?:rg|grep|find|git status)(?:\s|$)", lowered):
+    if re.search(r"(?:^|[\s'\"])(?:rg|grep|find|git status)(?:\s|$)", lowered):
         return "search"
     if len(lines) > 20 and _repeated_line_signal(lines):
         return "log"

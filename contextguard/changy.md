@@ -22,7 +22,7 @@
 ### Validation and measurements
 
 - Focused routing, dedup, structured-inspection and benchmark suites passed 49 tests after the information-fidelity fix.
-- Final repository validation passed 225 tests, source compilation, `git diff --check`, plugin manifest validation, and clean 0.9.2 wheel/sdist builds.
+- Final repository validation passed 226 tests, source compilation, `git diff --check`, plugin manifest validation, and clean 0.9.2 wheel/sdist builds.
 - The established hard-output A/B remained exactly at its 0.9.1 baseline: 20,650 RAW versus 292 visible tokens (98.59%), proving no regression.
 - New routing/repeat A/B: 30,367 RAW versus 645 ContextGuard-visible tokens, 29,722 saved (97.88%). On Cargo, Kubernetes and GitHub CLI outputs that 0.9.1 passed through raw, the improvement was 97.33%.
 - The first three-pair live Codex run was rejected because pair 1 differed in concurrency `version` output despite all tests passing. It remains stored as failed evidence and was not used for release acceptance.
@@ -34,6 +34,7 @@
 - Command-family summaries are deterministic but cannot understand every tool version; complete archives and focused expansion remain the fallback.
 - Repeated-output references are session-local and are disabled for truncated archives, preventing false exactness when only bounded head/tail bytes were retained.
 - Safe scalar facts intentionally exclude strings and sensitive key families; exact structured evidence still requires an explicit bounded follow-up when omitted values matter.
+- Installed verification exposed and fixed a quoted-shell routing edge case: `sh -lc 'git status ...'` now recognizes the quote as a command boundary instead of misclassifying numbered paths as repetitive logs.
 
 ### Release and installed-copy verification
 

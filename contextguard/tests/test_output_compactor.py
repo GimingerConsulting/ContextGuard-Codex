@@ -120,3 +120,18 @@ def test_repeated_logs_collapse_by_normalized_signature():
 
     assert compact["output_kind"] == "log"
     assert compact["signal_lines"][0].startswith("repeated x40:")
+
+
+def test_quoted_shell_status_is_search_signal_not_repetitive_log():
+    output = "\n".join(
+        [f" M benchmarks/results/output-ab-2026-06-{day:02d}.json" for day in range(1, 25)]
+        + ["0dae9773cc2a6eb5772200e8835e8dfe2089fc82"]
+    )
+    compact = compact_output(
+        output,
+        command="sh -lc 'git status --short --branch && git rev-parse HEAD'",
+    )
+
+    assert compact["output_kind"] == "search"
+    assert compact["signal_lines"][0].endswith("output-ab-2026-06-01.json")
+    assert not any(line.startswith("repeated x") for line in compact["signal_lines"])
