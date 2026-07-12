@@ -473,3 +473,10 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Real Codex CLI A/B: valid isolated pair with the same task, 144/144 hidden tests and 152 total tests passed in both arms. RAW: 352,480 input tokens (294,912 cached, 57,568 uncached), 6,403 output tokens, 39,274 tool-output bytes, 27 commands, 172.13s. ContextGuard: 202,573 input tokens (180,736 cached, 21,837 uncached), 5,232 output tokens, 15,728 tool-output bytes, 15 commands, 118.01s.
 - Result: 42.53% lower total input, 62.07% lower uncached input, 59.95% lower tool output, 44.44% fewer commands, and 31.44% lower elapsed time at identical hidden-test quality. The preset acceptance gate passed.
 - Research basis: observation masking and hybrid masking/summarization results from JetBrains Research; cache-stable ingestion and lifecycle-aware eviction from TokenPilot; immutable raw history plus compact recall handles from SAM/LCM-style memory. Sources: https://arxiv.org/abs/2508.21433, https://github.com/JetBrains-Research/the-complexity-trap, https://arxiv.org/abs/2606.17016, https://arxiv.org/abs/2605.24468, https://github.com/Martian-Engineering/volt
+
+## 2026-07-12 — Website benchmark handoff
+
+- Audited `https://context-guard-plugin.vercel.app` against the newest accepted real Codex CLI result.
+- Found that the public hero still uses older 33.8% / 98.3% figures and that multiple benchmark cards currently render zero values; animated headings also remained scrambled in the rendered page during inspection.
+- Added `docs/WEBSITE_BENCHMARK_2026-07-12.md` with copy-ready headline, metric cards, comparison table, methodology, plain-language explanation, capacity equivalents, limitations, and evidence pointers.
+- Kept measured reductions separate from extrapolation: 1.74x total-input capacity and 2.64x uncached-input capacity are same-workload equivalents, not guaranteed Codex subscription multipliers.
