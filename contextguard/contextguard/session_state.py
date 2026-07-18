@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,6 +56,7 @@ def _empty_state(checkpoint: dict | None = None) -> dict:
         "reads": {},
         "evidence": {},
         "outputs": {},
+        "working_set": {},
         "routing_events": [],
         "advice_emitted": [],
         "metrics": {
@@ -196,6 +198,7 @@ def record_output(
     summary_path: str,
     *,
     raw_bytes: int,
+    truncated: bool = False,
 ) -> dict:
     """Record an exact, session-local output hash for reversible deduplication."""
     state = load_session_state(root)
@@ -216,6 +219,7 @@ def record_output(
         "first_summary_path": summary_path,
         "last_summary_path": summary_path,
         "raw_bytes": raw_bytes,
+        "truncated": truncated,
     }
     save_session_state(root, state)
     return {
@@ -224,6 +228,29 @@ def record_output(
         "first_summary_path": summary_path,
         "reference": fingerprint[:12],
     }
+
+
+def record_working_set(root: Path, packet: str) -> dict[str, dict[str, str]]:
+    working_set: dict[str, dict[str, str]] = {}
+    pattern = re.compile(r"^- (?:(?:dependency|implementation|evidence) )?(.+?) sha=([0-9a-f]{12})\b")
+    for line in packet.splitlines():
+        match = pattern.match(line)
+        if not match:
+            continue
+        relative, short_hash = match.groups()
+        path = (root / relative).resolve()
+        try:
+            path.relative_to(root.resolve())
+        except ValueError:
+            continue
+        if path.is_file():
+            working_set[relative] = {"sha256_prefix": short_hash}
+    state = load_session_state(root)
+    state["working_set"] = working_set
+    state["working_set_command_index"] = len(state.get("commands", []))
+    state.setdefault("metrics", {})["working_set_files"] = len(working_set)
+    save_session_state(root, state)
+    return working_set
 
 
 def set_routing_lock(root: Path, locked: bool, *, reasons: list[str] | None = None) -> None:

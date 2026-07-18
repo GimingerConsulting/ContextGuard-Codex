@@ -3,23 +3,26 @@ from pathlib import Path
 from contextguard.output_capture import _prune_archives, _render_summary, _run_bounded
 
 
-def test_run_bounded_retains_head_and_tail(tmp_path: Path, monkeypatch):
+def test_run_bounded_archives_exact_output_and_bounds_analysis_sample(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("CONTEXTGUARD_MAX_RETAINED_BYTES", "1024")
     stdout_path = tmp_path / "stdout.txt"
     stderr_path = tmp_path / "stderr.txt"
-    code = "import sys; print('HEAD'); print('x' * 4096); print('TAIL')"
+    body_size = 2 * 1024 * 1024 + 123
+    code = f"import sys; print('HEAD'); print('x' * {body_size}); print('TAIL')"
 
     exit_code, stdout, stderr, timed_out = _run_bounded(
         ["python3", "-c", code], tmp_path, stdout_path, stderr_path
     )
 
-    retained = stdout_path.read_text(encoding="utf-8")
+    archived = stdout_path.read_text(encoding="utf-8")
     assert exit_code == 0
     assert timed_out is False
-    assert stdout["bytes"] > 4096
+    assert stdout["bytes"] > 2 * 1024 * 1024
     assert stdout["truncated"] is True
-    assert "HEAD" in retained
-    assert "TAIL" in retained
+    assert archived == "HEAD\n" + "x" * body_size + "\nTAIL\n"
+    assert stdout["retained"] <= 1100
+    assert b"HEAD" in stdout["content"]
+    assert b"TAIL" in stdout["content"]
     assert stderr["bytes"] == 0
 
 
@@ -78,22 +81,66 @@ def test_passing_test_summary_uses_one_line_codec():
         "summary_path": "/tmp/result.json",
         "display_summary_path": ".contextguard/tmp/result.json",
         "exit_code": 0,
+        "content_fingerprint": "a" * 64,
         "test_summary": "210 passed in 88.85s",
         "evidence": {"outcome": "passed"},
     })
 
     assert rendered.startswith("ContextGuard PASS | 210 passed")
-    assert len(rendered.encode()) < 120
+    assert "reuse until relevant code changes" in rendered
+    assert "handle:" not in rendered
+    assert len(rendered.encode()) < 140
 
 
 def test_repeated_exact_output_uses_compact_reversible_reference():
     rendered = _render_summary([], {
         "summary_path": "/tmp/result.json",
         "display_summary_path": ".contextguard/tmp/result.json",
+        "content_fingerprint": "abc123def456" + "0" * 52,
         "repeated_output": {"repeated": True, "reference": "abc123def456", "occurrences": 3},
     })
 
     assert rendered == (
-        "ContextGuard ref:abc123def456 x3 unchanged; "
-        "archive: .contextguard/tmp/result.json\n"
+        "ContextGuard REUSE | ref:abc123def456 x3 unchanged; no action needed\n"
     )
+
+
+def test_diagnostic_failure_does_not_advertise_an_archive_roundtrip():
+    rendered = _render_summary([], {
+        "summary_path": "/tmp/result.json",
+        "display_summary_path": ".contextguard/tmp/result.json",
+        "content_fingerprint": "b" * 64,
+        "exit_code": 1,
+        "duration_ms": 2,
+        "raw_bytes": 5000,
+        "errors": ["ValueError: broken"],
+        "warnings": [],
+        "failed_tests": ["tests/test_api.py::test_case"],
+        "evidence": {"outcome": "failed", "locations": ["api.py:20"]},
+        "escalation": {"required": False},
+    })
+
+    assert "ValueError: broken" in rendered
+    assert "api.py:20" in rendered
+    assert "handle:" not in rendered
+    assert "archive:" not in rendered
+
+
+def test_missing_failure_diagnostic_exposes_exactly_one_expansion_path():
+    rendered = _render_summary([], {
+        "summary_path": "/tmp/result.json",
+        "display_summary_path": ".contextguard/tmp/result.json",
+        "content_fingerprint": "c" * 64,
+        "exit_code": 1,
+        "duration_ms": 2,
+        "raw_bytes": 5000,
+        "errors": [],
+        "warnings": [],
+        "evidence": {"outcome": "failed", "locations": []},
+        "escalation": {"required": True, "reason": "failed_without_diagnostic", "action": "expand once"},
+        "expand_directive": "expand one bounded slice",
+    })
+
+    assert rendered.count("handle:") == 1
+    assert rendered.count("archive:") == 1
+    assert "expand one bounded slice" in rendered

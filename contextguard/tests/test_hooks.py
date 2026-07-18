@@ -272,7 +272,7 @@ def test_pre_compact_emits_bounded_resume_capsule(tmp_path: Path):
     assert "transcript" not in context
 
 
-def test_pre_tool_use_denies_repeated_unchanged_read(tmp_path: Path):
+def test_pre_tool_use_rewrites_repeated_unchanged_read_without_blocking(tmp_path: Path):
     state = tmp_path / ".contextguard"
     state.mkdir()
     (state / "manifest.json").write_text("{}")
@@ -287,8 +287,8 @@ def test_pre_tool_use_denies_repeated_unchanged_read(tmp_path: Path):
     )
 
     output = result["hookSpecificOutput"]
-    assert output["permissionDecision"] == "deny"
-    assert "repeated_unchanged_read" in output["permissionDecisionReason"]
+    assert output["permissionDecision"] == "allow"
+    assert "snapshot app.py" in output["updatedInput"]["command"]
 
 
 def test_post_tool_use_records_successful_command_for_budget(tmp_path: Path):
@@ -335,7 +335,7 @@ def test_user_prompt_does_not_repeat_session_start_resume_context(tmp_path: Path
     assert "old next action" not in context
 
 
-def test_user_prompt_injects_bounded_evidence_for_explicit_ticket(tmp_path: Path):
+def test_user_prompt_injects_ticket_evidence_once_without_replay(tmp_path: Path):
     state = tmp_path / ".contextguard"
     state.mkdir()
     (state / "manifest.json").write_text("{}")
@@ -349,14 +349,20 @@ def test_user_prompt_injects_bounded_evidence_for_explicit_ticket(tmp_path: Path
         {"prompt": "Investigate inventory retry failure in SUPPORT_TICKET.md"},
         tmp_path,
     )
-    context = result["hookSpecificOutput"]["additionalContext"]
+    context = result.get("hookSpecificOutput", {}).get("additionalContext", "")
 
-    assert "ContextGuard task evidence" in context
+    assert "ContextGuard task working set" in context
     assert "SUPPORT_TICKET.md sha=" in context
-    assert len(context.encode()) <= 1280
+
+    repeated = run_hook(
+        "user_prompt_submit.py",
+        {"prompt": "Investigate inventory retry failure in SUPPORT_TICKET.md"},
+        tmp_path,
+    )
+    assert repeated == {}
 
 
-def test_user_prompt_adds_single_worker_routing_for_bounded_feature(tmp_path: Path):
+def test_user_prompt_injects_task_evidence_once_for_bounded_feature(tmp_path: Path):
     state = tmp_path / ".contextguard"
     state.mkdir()
     (state / "manifest.json").write_text("{}")
@@ -372,9 +378,17 @@ def test_user_prompt_adds_single_worker_routing_for_bounded_feature(tmp_path: Pa
     )
 
     context = result["hookSpecificOutput"]["additionalContext"]
-    assert "delegate exactly one" in context
-    assert "contextguard-worker" in context
-    assert "review the worker diff" in context
+    assert "ContextGuard task working set" in context
+    assert "parser.py sha=" in context
+    assert "delegate exactly one" not in context
+    assert "contextguard-worker" not in context
+
+    repeated = run_hook(
+        "user_prompt_submit.py",
+        {"prompt": "Implement the validated parser change in parser.py and add focused parser tests."},
+        tmp_path,
+    )
+    assert repeated == {}
 
 
 def test_user_prompt_does_not_route_security_migration(tmp_path: Path):

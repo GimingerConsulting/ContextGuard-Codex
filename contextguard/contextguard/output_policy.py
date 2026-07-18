@@ -21,25 +21,22 @@ def classify_complexity(prompt: str, *, changed_file_count: int = 0) -> str:
 
 def render_policy(project_kind: str) -> str:
     orientation = (
-        "- Empty/greenfield repo: skip discovery and implement directly from the request."
+        "- Empty/greenfield repo: implement directly; ContextGuard stays passive."
         if project_kind == "empty"
         else (
-            "- First nontrivial task: exactly one `.contextguard/bin/contextguard orient --query \"<goal + named artifacts>\" --budget 900`; "
-            "do not list/search the repo or reread unchanged named files."
+            "- The first prompt already includes a bounded task evidence packet; "
+            "use it to skip broad orientation and inspect only evidence still needed."
         )
     )
     return f"""ContextGuard policy: {POLICY_NAME}.
 
-- Start from the brief/map. Read exact source once; reuse it.
 {orientation}
-- Read 1-4 named sources once with `.contextguard/bin/contextguard inspect`; do not capture bounded reads.
-- Capture large tests, builds, logs, diffs, search, or structured output before stdout reaches Codex: `.contextguard/bin/contextguard capture -- <command>`.
-- A successful capture summary is final. Retrieve at most one archive per task, only for a missing failure diagnostic.
-- Run one failing test, then one full suite; reuse passing evidence.
-- Never scan `.contextguard`, generated docs, caches, or archives. Batch independent inspections when supported.
-- Budgets are advisory; never omit correctness, security, validation, or data-integrity evidence.
-- Nontrivial low-risk work: exactly one bounded `contextguard-worker`; high-risk work stays local. Parent reviews and final-validates.
-- Be concise: changed files, validation, and real risks.
+- Use normal shell/source commands. Hooks optimize large output automatically; never call ContextGuard commands, help, brief, or archives yourself.
+- Read exact source once and reuse it. Batch independent reads and searches in one call.
+- After editing, combine targeted tests, the full suite, and the diff check in one validation call when safe; reuse passing evidence.
+- Do not scan `.contextguard`, generated docs, caches, or archives.
+- Preserve correctness, security, validation, and data integrity. Work locally unless delegation clearly saves calls.
+- Stop once evidence is sufficient. Keep reasoning concise; final: changed files, validation, and real risks.
 
 Project: {project_kind}.
 """

@@ -68,18 +68,18 @@ def test_all_command_skills_use_the_bundled_runner():
         assert '"$PLUGIN_ROOT/scripts/contextguard"' in skill
 
 
-def test_managed_policy_requires_host_independent_capture_runner(tmp_path: Path):
+def test_managed_policy_keeps_optimization_transparent(tmp_path: Path):
     policy = render_agents(
         ProjectInfo(root=tmp_path, kind="existing", is_git=False, is_monorepo=False)
     )
 
-    assert ".contextguard/bin/contextguard capture --" in policy
-    assert "before stdout reaches Codex" in policy
-    assert "tests, builds, logs, diffs, search" in policy
-    assert "successful capture summary is final" in policy
-    assert "at most one archive per task" in policy
-    assert "Budgets are advisory" in policy
+    assert "Use normal shell/source commands" in policy
+    assert "Hooks optimize large output automatically" in policy
+    assert "never call ContextGuard commands" in policy
+    assert "Stop once evidence is sufficient" in policy
     assert len(policy.encode()) < 1400
+
+
 def test_public_readme_documents_license_terms():
     readme = (ROOT / "README.md").read_text()
 

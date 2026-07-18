@@ -45,25 +45,36 @@ def _drain_stream(stream, path: Path, limit: int, result: dict[str, object]) -> 
     head = bytearray()
     tail = bytearray()
     seen = 0
-    while True:
-        chunk = stream.read(65_536)
-        if not chunk:
-            break
-        seen += len(chunk)
-        remaining = chunk
-        if len(head) < head_limit:
-            take = min(head_limit - len(head), len(remaining))
-            head.extend(remaining[:take])
-            remaining = remaining[take:]
-        if remaining:
-            tail.extend(remaining)
-            if len(tail) > tail_limit:
-                del tail[:-tail_limit]
+    with path.open("wb") as archive:
+        while True:
+            chunk = stream.read(65_536)
+            if not chunk:
+                break
+            archive.write(chunk)
+            seen += len(chunk)
+            remaining = chunk
+            if len(head) < head_limit:
+                take = min(head_limit - len(head), len(remaining))
+                head.extend(remaining[:take])
+                remaining = remaining[take:]
+            if remaining:
+                tail.extend(remaining)
+                if len(tail) > tail_limit:
+                    del tail[:-tail_limit]
     truncated = seen > limit
     marker = f"\n... ContextGuard truncated {seen - limit} archived bytes ...\n".encode() if truncated else b""
     payload = bytes(head) + marker + bytes(tail)
-    path.write_bytes(payload)
     result.update({"bytes": seen, "retained": len(payload), "truncated": truncated, "content": payload})
+
+
+def _content_fingerprint(stdout_path: Path, stderr_path: Path) -> str:
+    digest = hashlib.sha256()
+    for path in (stdout_path, stderr_path):
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(65_536), b""):
+                digest.update(chunk)
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def _run_bounded(argv: list[str], root: Path, stdout_path: Path, stderr_path: Path) -> tuple[int, dict, dict, bool]:
@@ -139,11 +150,12 @@ def _is_noisy_medium_output(summary: dict) -> bool:
 
 def _render_summary(argv: list[str], summary: dict) -> str:
     archive = summary.get("display_summary_path", summary["summary_path"])
+    handle = f"cg://output/{summary['content_fingerprint'][:12]}"
     repeated_output = summary.get("repeated_output")
     if repeated_output and repeated_output.get("repeated"):
         return (
-            f"ContextGuard ref:{repeated_output['reference']} x{repeated_output['occurrences']} unchanged; "
-            f"archive: {archive}\n"
+            f"ContextGuard REUSE | ref:{repeated_output['reference']} "
+            f"x{repeated_output['occurrences']} unchanged; no action needed\n"
         )
     repeated = summary.get("repeated_evidence")
     if repeated and repeated.get("repeated"):
@@ -156,17 +168,17 @@ def _render_summary(argv: list[str], summary: dict) -> str:
             rendered += "failed_tests:\n" + "\n".join(
                 f"- {name}" for name in summary["failed_tests"][:3]
             ) + "\n"
-        return rendered + f"archive: {archive}\n"
+        return rendered
     outcome = (summary.get("evidence") or {}).get("outcome")
     if summary.get("exit_code") == 0 and outcome == "passed":
-        return f"ContextGuard PASS | {summary['test_summary']} | archive: {archive}\n"
+        return f"ContextGuard PASS | {summary['test_summary']} | reuse until relevant code changes\n"
     if (
         summary.get("exit_code") == 0
         and not summary.get("errors")
         and not summary.get("warnings")
         and not summary.get("signal_lines")
     ):
-        return f"ContextGuard OK | {summary['raw_bytes']}B archived | archive: {archive}\n"
+        return f"ContextGuard OK | {summary['raw_bytes']}B processed | no further inspection needed\n"
     lines = [
         "ContextGuard capture summary",
         f"exit_code: {summary['exit_code']}",
@@ -201,10 +213,12 @@ def _render_summary(argv: list[str], summary: dict) -> str:
         if samples:
             lines.append("evidence_sample:")
             lines.extend(f"- {line}" for line in samples[:2])
-    expand_directive = summary.get("expand_directive")
-    if expand_directive:
-        lines.append(expand_directive)
-    lines.append(f"archive: {archive}")
+    if escalation.get("required"):
+        expand_directive = summary.get("expand_directive")
+        if expand_directive:
+            lines.append(expand_directive)
+        lines.append(f"handle: {handle}")
+        lines.append(f"archive: {archive}")
     return "\n".join(lines) + "\n"
 
 
@@ -241,7 +255,8 @@ def capture(root: Path, argv: list[str]) -> int:
             "stdout_bytes": int(stdout_result.get("bytes", 0)),
             "stderr_bytes": int(stderr_result.get("bytes", 0)),
             "raw_bytes": int(stdout_result.get("bytes", 0)) + int(stderr_result.get("bytes", 0)),
-            "archive_truncated": bool(stdout_result.get("truncated")) or bool(stderr_result.get("truncated")),
+            "archive_truncated": False,
+            "analysis_sample_truncated": bool(stdout_result.get("truncated")) or bool(stderr_result.get("truncated")),
             "timed_out": timed_out,
         }
     )
@@ -266,20 +281,17 @@ def capture(root: Path, argv: list[str]) -> int:
         locations=list(evidence_block.get("locations") or []),
         failed_tests=list(evidence_block.get("failed_tests") or []),
     )
-    content_payload = b"\0".join(
-        (bytes(stdout_result.get("content", b"")), bytes(stderr_result.get("content", b"")))
-    )
-    content_fingerprint = hashlib.sha256(content_payload).hexdigest()
+    content_fingerprint = _content_fingerprint(stdout_path, stderr_path)
     summary["content_fingerprint"] = content_fingerprint
+    summary["repeated_output"] = record_output(
+        root,
+        content_fingerprint,
+        summary_path.as_posix(),
+        raw_bytes=summary["raw_bytes"],
+        truncated=False,
+    )
     if summary.get("archive_truncated"):
-        summary["repeated_output"] = {"repeated": False, "occurrences": 1, "reference": content_fingerprint[:12]}
-    else:
-        summary["repeated_output"] = record_output(
-            root,
-            content_fingerprint,
-            summary_path.as_posix(),
-            raw_bytes=summary["raw_bytes"],
-        )
+        summary["repeated_output"]["repeated"] = False
     summary["expand_directive"] = build_evidence_expand_directive(root, summary["evidence_fingerprint"])
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     conn = connect(state_dir(root) / "index.sqlite")

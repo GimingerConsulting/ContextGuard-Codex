@@ -39,6 +39,8 @@ def _read_paths(root: Path, command: str) -> list[Path]:
         return []
     if parts[0] == "cat" and len(parts) >= 2 and not any(part.startswith("-") for part in parts[1:]):
         values = parts[1:]
+    elif parts[:2] == ["nl", "-ba"] and len(parts) >= 3:
+        values = parts[2:]
     elif parts[0] == "sed" and len(parts) >= 4 and parts[1] == "-n":
         values = parts[3:]
     else:
@@ -62,6 +64,8 @@ def parts_read_like(command: str) -> bool:
     if not parts:
         return False
     if parts[0] == "cat" and len(parts) >= 2:
+        return True
+    if parts[:2] == ["nl", "-ba"] and len(parts) >= 3:
         return True
     return parts[0] == "sed" and len(parts) >= 4 and parts[1] == "-n"
 

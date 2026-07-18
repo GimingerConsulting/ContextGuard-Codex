@@ -11,22 +11,18 @@ def test_policy_is_single_adaptive_maximum_efficiency_mode():
     policy = render_policy("python")
     assert POLICY_NAME in policy
     assert "Read exact source once" in policy
-    assert "exactly one `.contextguard/bin/contextguard orient" in policy
-    assert "do not list/search the repo or reread unchanged named files" in policy
-    assert "Never scan `.contextguard`" in policy
-    assert "capture -- <command>" in policy
-    assert "successful capture summary is final" in policy
-    assert "at most one archive per task" in policy
-    assert "Budgets are advisory" in policy
-    assert "contextguard-worker" in policy
-    assert "exactly one bounded `contextguard-worker`" in policy
-    assert "high-risk work stays local" in policy
-    assert "Parent reviews and final-validates" in policy
+    assert "first prompt already includes a bounded task evidence packet" in policy
+    assert "skip broad orientation" in policy
+    assert "Use normal shell/source commands" in policy
+    assert "Hooks optimize large output automatically" in policy
+    assert "never call ContextGuard commands" in policy
+    assert "Do not scan `.contextguard`" in policy
+    assert "combine targeted tests, the full suite, and the diff check" in policy
     assert "changed files, validation, and real risks" in policy
-    assert len(policy.encode()) < 1200
+    assert len(policy.encode()) < 900
 
     greenfield = render_policy("empty")
-    assert "skip discovery and implement directly" in greenfield
+    assert "implement directly; ContextGuard stays passive" in greenfield
     assert "contextguard orient" not in greenfield
 
 

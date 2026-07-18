@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .optimization_advisor import _family, _read_paths, _snapshot, parts_read_like
 from .session_state import load_session_state
+from .utils import sha256_file
 
 
 LOG_SUFFIXES = {".log", ".jsonl", ".json", ".csv", ".tsv", ".sql"}
@@ -48,6 +49,48 @@ def _source_files_for_inspect(command: str, root: Path) -> list[str]:
     return source
 
 
+def _nested_command_parts(command: str) -> list[str]:
+    parts = _command_key_parts(command)
+    if len(parts) >= 3 and parts[0].rsplit("/", 1)[-1] in {"sh", "bash", "zsh"} and parts[1] in {"-c", "-lc"}:
+        nested = _command_key_parts(parts[2])
+        return nested or parts
+    return parts
+
+
+def _working_set_read_paths(command: str, root: Path) -> tuple[list[str], bool]:
+    parts = _nested_command_parts(command)
+    if not parts:
+        return [], False
+    bounded = any(part in {"--symbol", "--start-line", "--end-line"} for part in parts)
+    operation_index = next((index for index, part in enumerate(parts) if part in {"inspect", "snapshot"}), -1)
+    if operation_index >= 0:
+        values = []
+        for part in parts[operation_index + 1 :]:
+            if part.startswith("-"):
+                break
+            path = (root / part).resolve()
+            try:
+                values.append(path.relative_to(root.resolve()).as_posix())
+            except ValueError:
+                continue
+        return values, bounded
+    return _source_files_for_inspect(command, root), bounded
+
+
+def _unchanged_working_set_paths(root: Path, state: dict, command: str) -> list[str]:
+    paths, bounded = _working_set_read_paths(command, root)
+    if bounded or not paths:
+        return []
+    working_set = state.get("working_set") or {}
+    unchanged = []
+    for relative in paths:
+        entry = working_set.get(relative)
+        path = root / relative
+        if entry and path.is_file() and sha256_file(path).startswith(str(entry.get("sha256_prefix", "missing"))):
+            unchanged.append(relative)
+    return unchanged if len(unchanged) == len(paths) else []
+
+
 def _bypasses_capture_runner(command: str) -> bool:
     lowered = command.lower()
     if "contextguard capture" in lowered or ".contextguard/bin/contextguard capture" in lowered:
@@ -62,6 +105,16 @@ def _bypasses_capture_runner(command: str) -> bool:
     return False
 
 
+def _is_exploratory(command: str, family: str | None = None) -> bool:
+    lowered = command.lower()
+    return (
+        parts_read_like(command)
+        or (family or _family(command)) == "repository_listing"
+        or "contextguard inspect" in lowered
+        or "contextguard snapshot" in lowered
+    )
+
+
 def evaluate_budget(root: Path, command: str, *, enforce_capture_path: bool = False) -> BudgetDecision:
     if not command:
         return BudgetDecision("allow", "empty_command")
@@ -72,8 +125,23 @@ def evaluate_budget(root: Path, command: str, *, enforce_capture_path: bool = Fa
             "Run `.contextguard/bin/contextguard capture -- <command>` before stdout reaches the host.",
         )
     state = load_session_state(root)
-    family = _family(command)
+    nested_parts = _nested_command_parts(command)
+    family = _family(shlex.join(nested_parts)) if nested_parts else _family(command)
     family_count = sum(1 for item in state.get("commands", []) if item.get("family") == family)
+    if state.get("working_set") and _is_exploratory(command, family):
+        command_index = int(state.get("working_set_command_index", 0))
+        later_commands = state.get("commands", [])[command_index:]
+        exploratory_count = sum(
+            1
+            for item in later_commands
+            if _is_exploratory(str(item.get("command", "")), str(item.get("family", "")))
+        )
+        if exploratory_count >= 2:
+            return BudgetDecision(
+                "advise",
+                "exploration_phase_complete",
+                "Prefer implementation or a targeted test now; this command will run because missing evidence must remain recoverable.",
+            )
     snapshot = _snapshot(root, command)
     if snapshot:
         from .optimization_advisor import _command_key
@@ -81,9 +149,9 @@ def evaluate_budget(root: Path, command: str, *, enforce_capture_path: bool = Fa
         previous = state.get("reads", {}).get(_command_key(command))
         if previous and previous.get("hashes") == snapshot:
             return BudgetDecision(
-                "deny",
+                "advise",
                 "repeated_unchanged_read",
-                "Reuse the prior read from this session or use `contextguard inspect` for a bounded slice.",
+                "Reuse the prior read or request a bounded slice when possible; this command will run because the evidence may still be required.",
             )
 
     exact_count = sum(1 for item in state.get("commands", []) if item.get("command") == command)
@@ -104,9 +172,9 @@ def evaluate_budget(root: Path, command: str, *, enforce_capture_path: bool = Fa
         source_files = _source_files_for_inspect(command, root)
         if read_count >= 2 and len(source_files) >= 2:
             return BudgetDecision(
-                "deny",
+                "advise",
                 "inspect_instead_of_multi_read",
-                "Use `.contextguard/bin/contextguard inspect` for the named source files in one bounded call.",
+                "Prefer `.contextguard/bin/contextguard inspect` for the named source files in one bounded call; this command will run.",
             )
     return BudgetDecision("allow", "within_budget")
 

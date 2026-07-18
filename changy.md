@@ -2,6 +2,15 @@
 
 See [contextguard/changy.md](contextguard/changy.md) for the detailed implementation protocol.
 
+## 2026-07-18 Transparent Zero-Roundtrip ContextGuard
+
+- Replaced the manual ContextGuard CLI workflow with transparent optimization: the managed policy now tells Codex to use normal shell/source commands while hooks handle eligible large output automatically. It explicitly forbids ContextGuard help, brief, archive, and manual wrapper calls, batches independent inspection, combines final validation, and stops investigation once evidence is sufficient.
+- Added a content-addressed, one-time task-evidence injection. Repeated or low-confidence prompts remain silent, avoiding permanent cached-history growth and duplicate orientation packets.
+- Successful and repeated capture summaries no longer advertise archive retrieval. Only a failed result without a useful diagnostic exposes one bounded expansion path.
+- Added standard GPT-5.6 Sol API-dollar accounting at $5.00/M uncached input, $0.50/M cached input, and $30.00/M output. The release gate requires equal behavioral quality, exact usage, no command increase, and at least 50% median API-dollar savings.
+- Real GPT-5.6 Sol screen, medium reasoning, same support ticket: both variants passed all 144 hidden tests and produced the same canonical/concurrency results. RAW used 389,814 total tokens, 13 commands, and $0.629986; transparent ContextGuard used 164,797 total tokens, 5 commands, and $0.365395. That is 57.72% fewer tokens, 61.54% fewer commands, and 42.00% lower standard API cost.
+- The 50% dollar gate remains rejected. No three-pair run and no website claim were made. Output tokens fell only 29.10%, and GPT-5.6 Sol output is the dominant $30/M cost. The isolated CLI also did not dispatch the project-local capture hook, so `capture_runner_used` remained false; the measured savings came from the managed zero-roundtrip policy rather than capture compression.
+
 ## 2026-07-18 GPT-5.6 Sol RAW/ContextGuard Gate Rejected
 
 - Researched the current OpenAI guidance and changed the primary economics metric to Sol credits: uncached input 125, cached input 12.5, and output 750 credits per million tokens. This prevents cheap cached input and expensive output from being treated as equal.

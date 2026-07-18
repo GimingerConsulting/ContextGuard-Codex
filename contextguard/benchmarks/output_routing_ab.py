@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 try:
@@ -17,7 +18,7 @@ if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
 from contextguard.command_classifier import classify_command
-from contextguard.output_capture import _render_summary
+from contextguard.output_capture import _content_fingerprint, _render_summary, _run_bounded
 from contextguard.output_compactor import compact_output
 
 
@@ -75,6 +76,25 @@ def _fixtures() -> list[tuple[str, str, str]]:
 
 
 def compare_fixture(name: str, command: str, raw: str) -> dict[str, object]:
+    with tempfile.TemporaryDirectory(prefix="contextguard-routing-ab-") as directory:
+        root = Path(directory)
+        fixture_path = root / "fixture.txt"
+        stdout_path = root / "captured.stdout.txt"
+        stderr_path = root / "captured.stderr.txt"
+        fixture_path.write_text(raw, encoding="utf-8")
+        capture_exit, _, _, timed_out = _run_bounded(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; import sys; sys.stdout.write(Path(sys.argv[1]).read_text())",
+                fixture_path.as_posix(),
+            ],
+            root,
+            stdout_path,
+            stderr_path,
+        )
+        archived_bytes = stdout_path.read_bytes()
+        content_fingerprint = _content_fingerprint(stdout_path, stderr_path)
     compact = compact_output(raw, command=command)
     common = {
         **compact,
@@ -82,6 +102,7 @@ def compare_fixture(name: str, command: str, raw: str) -> dict[str, object]:
         "display_summary_path": f".contextguard/tmp/{name}.summary.json",
         "exit_code": 0,
         "duration_ms": 0,
+        "content_fingerprint": content_fingerprint,
         "repeated_evidence": {"repeated": False},
         "repeated_output": {"repeated": False, "occurrences": 1, "reference": "first"},
     }
@@ -98,7 +119,8 @@ def compare_fixture(name: str, command: str, raw: str) -> dict[str, object]:
     visible_session = first_visible + repeated_visible
     raw_tokens = _tokens(raw_session)
     visible_tokens = _tokens(visible_session)
-    archived_hash = hashlib.sha256(raw.encode()).hexdigest()
+    raw_hash = hashlib.sha256(raw.encode()).hexdigest()
+    archived_hash = hashlib.sha256(archived_bytes).hexdigest()
     sensitive_value_hidden = "private-0@example.test" not in visible_session
     return {
         "name": name,
@@ -109,9 +131,9 @@ def compare_fixture(name: str, command: str, raw: str) -> dict[str, object]:
         "contextguard_visible_tokens": visible_tokens,
         "tokens_saved": raw_tokens - visible_tokens,
         "token_reduction_percent": round((raw_tokens - visible_tokens) / raw_tokens * 100, 2),
-        "raw_output_sha256": archived_hash,
+        "raw_output_sha256": raw_hash,
         "archived_output_sha256": archived_hash,
-        "exact_archive_preserved": True,
+        "exact_archive_preserved": capture_exit == 0 and not timed_out and archived_bytes == raw.encode(),
         "sensitive_value_hidden": sensitive_value_hidden,
         "repeat_reference": reference,
         "first_visible": first_visible,

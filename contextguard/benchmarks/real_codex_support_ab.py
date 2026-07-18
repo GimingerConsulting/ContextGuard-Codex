@@ -47,6 +47,7 @@ RUN_ORDERS = [("raw", "contextguard"), ("contextguard", "raw"), ("raw", "context
 BENCHMARK_MODEL = os.environ.get("CONTEXTGUARD_BENCHMARK_MODEL", "gpt-5.6-sol")
 REASONING_EFFORT = os.environ.get("CONTEXTGUARD_BENCHMARK_REASONING_EFFORT", "medium")
 SOL_CREDITS_PER_MILLION = {"uncached_input": 125.0, "cached_input": 12.5, "output": 750.0}
+API_USD_PER_MILLION = {"uncached_input": 5.0, "cached_input": 0.5, "output": 30.0}
 
 
 def sol_credit_cost(run: dict) -> float:
@@ -60,6 +61,19 @@ def sol_credit_cost(run: dict) -> float:
         + output * SOL_CREDITS_PER_MILLION["output"]
     ) / 1_000_000
     return round(credits, 6)
+
+
+def api_cost_usd(run: dict) -> float:
+    input_tokens = int(run.get("input_tokens", 0))
+    cached = min(input_tokens, int(run.get("cached_input_tokens", 0)))
+    uncached = max(0, input_tokens - cached)
+    output = int(run.get("output_tokens", 0))
+    cost = (
+        uncached * API_USD_PER_MILLION["uncached_input"]
+        + cached * API_USD_PER_MILLION["cached_input"]
+        + output * API_USD_PER_MILLION["output"]
+    ) / 1_000_000
+    return round(cost, 6)
 
 TICKET = """# Support ticket INC-4821
 
@@ -205,9 +219,23 @@ def build_codex_command(project: Path, *, optimized: bool) -> list[str]:
         "exec", "--json", "--ephemeral", "--ignore-rules",
         "--model", BENCHMARK_MODEL, "-c", f'model_reasoning_effort="{REASONING_EFFORT}"',
         "--sandbox", "danger-full-access", "-c", 'approval_policy="never"',
-        "-c", "features.plugins=false", "-C", str(project), PROMPT,
+        "-c", f"features.plugins={'true' if optimized else 'false'}", "-C", str(project), PROMPT,
     ])
     return command
+
+
+def prepare_optimized_project_with_hooks(target: Path) -> None:
+    prepare_optimized_project(target)
+    hooks = json.loads((PLUGIN_ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
+    prefix = f"PYTHONPATH={shlex.quote(str(PLUGIN_ROOT))} "
+    for rules in hooks.get("hooks", {}).values():
+        for rule in rules:
+            for hook in rule.get("hooks", []):
+                if hook.get("type") == "command" and hook.get("command"):
+                    hook["command"] = prefix + str(hook["command"]).replace("$PLUGIN_ROOT", str(PLUGIN_ROOT))
+    config_dir = target / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "hooks.json").write_text(json.dumps(hooks, indent=2) + "\n", encoding="utf-8")
 
 
 def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool, timeout: int) -> dict:
@@ -216,15 +244,19 @@ def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool,
     original_prompt = backend.PROMPT
     original_validate = backend.validate_fixture
     original_command = backend.build_codex_command
+    original_prepare = backend.prepare_optimized_project
+
     try:
         backend.PROMPT = PROMPT
         backend.validate_fixture = validate_fixture
         backend.build_codex_command = build_codex_command
+        backend.prepare_optimized_project = prepare_optimized_project_with_hooks
         return backend_run_trial(project, home, artifact_dir, optimized=optimized, timeout=timeout)
     finally:
         backend.PROMPT = original_prompt
         backend.validate_fixture = original_validate
         backend.build_codex_command = original_command
+        backend.prepare_optimized_project = original_prepare
 
 
 def _run_one(kind: str, root: Path, artifact_dir: Path, timeout: int) -> dict:
@@ -254,14 +286,16 @@ def build_release_gate(pairs: list[dict], aggregate: dict[str, dict]) -> dict[st
         )
     total_change = aggregate["total_tokens"]["median_change_percent"]
     credit_change = aggregate["sol_credits"]["median_change_percent"]
+    api_cost_change = aggregate["api_cost_usd"]["median_change_percent"]
     median_reduction = -float(total_change) if total_change is not None else None
     credit_reduction = -float(credit_change) if credit_change is not None else None
+    api_cost_reduction = -float(api_cost_change) if api_cost_change is not None else None
     quality_passed = all(bool(pair.get("accepted")) for pair in pairs)
     passed = all(
         (
             quality_passed,
             usage_complete,
-            credit_reduction is not None and credit_reduction >= 50.0,
+            api_cost_reduction is not None and api_cost_reduction >= 50.0,
             all(reduction > 0 for reduction in pair_reductions),
             commands_not_increased,
         )
@@ -271,6 +305,7 @@ def build_release_gate(pairs: list[dict], aggregate: dict[str, dict]) -> dict[st
         "quality_passed": quality_passed,
         "median_total_token_reduction_percent": round(median_reduction, 2) if median_reduction is not None else None,
         "median_sol_credit_reduction_percent": round(credit_reduction, 2) if credit_reduction is not None else None,
+        "median_api_cost_reduction_percent": round(api_cost_reduction, 2) if api_cost_reduction is not None else None,
         "minimum_required_percent": 50.0,
         "pair_total_token_reductions_percent": pair_reductions,
         "all_pairs_positive": all(reduction > 0 for reduction in pair_reductions),
@@ -289,6 +324,7 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
             with tempfile.TemporaryDirectory(prefix=f"contextguard-support-ab-{index}-{kind}-") as tmp:
                 results[kind] = _run_one(kind, Path(tmp), output_dir / f"pair-{index}" / kind, timeout)
                 results[kind]["sol_credits"] = sol_credit_cost(results[kind])
+                results[kind]["api_cost_usd"] = api_cost_usd(results[kind])
         raw_core = {key: results["raw"]["validation"]["canonical_output"].get(key) for key in ("sku", "quantity", "remaining", "ok")}
         contextguard_core = {key: results["contextguard"]["validation"]["canonical_output"].get(key) for key in ("sku", "quantity", "remaining", "ok")}
         accepted = all([
@@ -302,7 +338,7 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
                 results["contextguard"]["capture_runner_used"],
         ])
         pairs.append({"pair": index, "order": list(order), "accepted": accepted, **results})
-    keys = ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "reasoning_output_tokens", "tool_output_bytes", "elapsed_seconds", "command_executions", "sol_credits"]
+    keys = ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "reasoning_output_tokens", "tool_output_bytes", "elapsed_seconds", "command_executions", "sol_credits", "api_cost_usd"]
     aggregate = {}
     for key in keys:
         raw_values = [pair["raw"][key] for pair in pairs]
@@ -341,6 +377,7 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
             "auto_compact_token_limit": os.environ.get("CONTEXTGUARD_AUTO_COMPACT_TOKEN_LIMIT") or None,
         },
         "sol_credit_rates_per_million": SOL_CREDITS_PER_MILLION,
+        "api_usd_rates_per_million": API_USD_PER_MILLION,
         "all_pairs_accepted": all(pair["accepted"] for pair in pairs),
         "release_gate": release_gate,
         "pairs": pairs, "aggregate": aggregate,
@@ -348,6 +385,7 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
             f"{pair_count} controlled pair(s) do not eliminate model stochasticity.",
             "Hidden tests improve quality independence but cannot represent every production repository.",
             "Codex subscription quota accounting is not exposed by the CLI.",
+            "The USD calculation uses standard GPT-5.6 Sol text-token pricing and assumes no individual request crossed the 272K long-context threshold.",
         ],
     }
     (output_dir / "summary.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
