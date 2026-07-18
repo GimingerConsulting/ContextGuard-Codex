@@ -25,6 +25,9 @@ CHECKPOINT_FIELDS = (
     "known_failures",
     "active_constraints",
     "next_action",
+    "integration_points",
+    "verified_facts",
+    "rejected_hypotheses",
 )
 
 
@@ -116,8 +119,22 @@ def load_checkpoint(root: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _checkpoint_value(value: object) -> bool:
+    return value not in (None, "", [], {}, ())
+
+
 def persist_checkpoint(root: Path, facts: dict) -> dict:
-    compact = {key: facts[key] for key in CHECKPOINT_FIELDS if facts.get(key)}
+    existing = load_checkpoint(root)
+    compact = {}
+    for key in CHECKPOINT_FIELDS:
+        if key in facts:
+            new_value = facts[key]
+            if _checkpoint_value(new_value):
+                compact[key] = new_value
+            continue
+        existing_value = existing.get(key)
+        if _checkpoint_value(existing_value):
+            compact[key] = existing_value
     compact.update(
         {
             "version": STATE_VERSION,

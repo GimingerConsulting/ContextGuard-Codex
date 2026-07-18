@@ -45,6 +45,40 @@ def test_checkpoint_is_versioned_and_allow_listed(tmp_path: Path):
     assert checkpoint["checkpoint_id"]
 
 
+def test_checkpoint_persistence_merges_sparse_updates(tmp_path: Path):
+    first = persist_checkpoint(
+        tmp_path,
+        {
+            "current_objective": "finish compaction",
+            "changed_files": ["contextguard/contextguard/session_state.py"],
+            "verified_tests": ["12 passed"],
+            "known_failures": ["none"],
+            "active_constraints": ["keep prompts compact"],
+            "integration_points": ["pre_compact hook"],
+            "verified_facts": ["state survives sparse updates"],
+            "rejected_hypotheses": ["drop verified frontier"],
+            "next_action": "run focused tests",
+        },
+    )
+
+    second = persist_checkpoint(tmp_path, {"current_objective": "finish compaction faster"})
+
+    assert first["verified_tests"] == ["12 passed"]
+    assert second["current_objective"] == "finish compaction faster"
+    assert second["changed_files"] == ["contextguard/contextguard/session_state.py"]
+    assert second["verified_tests"] == ["12 passed"]
+    assert second["known_failures"] == ["none"]
+    assert second["active_constraints"] == ["keep prompts compact"]
+    assert second["integration_points"] == ["pre_compact hook"]
+    assert second["verified_facts"] == ["state survives sparse updates"]
+    assert second["rejected_hypotheses"] == ["drop verified frontier"]
+    assert second["next_action"] == "run focused tests"
+
+    cleared = persist_checkpoint(tmp_path, {"known_failures": []})
+    assert "known_failures" not in cleared
+    assert cleared["verified_tests"] == ["12 passed"]
+
+
 def test_record_evidence_detects_repeated_fingerprint(tmp_path: Path):
     first = record_evidence(tmp_path, "abc123", "/tmp/first.summary.json")
     second = record_evidence(tmp_path, "abc123", "/tmp/second.summary.json")

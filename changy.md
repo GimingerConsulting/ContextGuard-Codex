@@ -2,6 +2,13 @@
 
 See [contextguard/changy.md](contextguard/changy.md) for the detailed implementation protocol.
 
+## 2026-07-18 Execution Frontier Resume Capsule
+
+- Fixed sparse PreCompact checkpoint writes so newer partial events no longer erase previously verified objective, file, test, and constraint state.
+- Expanded the checkpoint allowlist with execution-frontier fields and made the PreCompact hook emit a bounded resume capsule with objective, relevant files/symbols, changed files, verified tests/failures/constraints, and next action.
+- Added regression coverage for checkpoint merges, capsule truncation/prioritization, PreCompact additionalContext, and a cheap offline raw-vs-capsule comparison.
+- Validation: 44 focused checkpoint, capsule, hook, cross-session, and session-gate tests passed; the deterministic compaction-boundary fixture enforces at least 50% fewer estimated rehydration tokens than RAW rereads.
+
 ## 2026-06-14 Capture Runner Enforcement 0.4.1
 
 - Strengthened generated `AGENTS.md` instructions for the exact large-file bypasses observed in real A/B runs.

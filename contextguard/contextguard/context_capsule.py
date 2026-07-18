@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from .config import state_dir
-from .session_state import CHECKPOINT_FIELDS, persist_checkpoint
+from .session_state import persist_checkpoint
 from .task_classifier import classify_task
 from .utils import estimate_tokens
 
@@ -35,7 +35,30 @@ def build_capsule(root: Path, prompt: str, token_limit: int = 400) -> str:
     return "ContextGuard capsule: start scoped; expand only when evidence is insufficient."
 
 
-SESSION_FIELDS = CHECKPOINT_FIELDS
+# Preserve the execution frontier before broader discovery context.  When the
+# capsule must shrink, trimming from the tail keeps the next atomic action and
+# already-verified state available after compaction.
+SESSION_FIELDS = (
+    "current_objective",
+    "next_action",
+    "changed_files",
+    "likely_relevant_symbols",
+    "verified_tests",
+    "known_failures",
+    "active_constraints",
+    "likely_relevant_files",
+    "integration_points",
+    "verified_facts",
+    "rejected_hypotheses",
+)
+
+
+def _render_session_value(value: object) -> str:
+    if isinstance(value, dict):
+        return ", ".join(f"{key}={value[key]}" for key in sorted(value))
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value)
+    return str(value)
 
 
 def persist_session_capsule(root: Path, facts: dict) -> Path:
@@ -56,7 +79,7 @@ def build_session_capsule(root: Path, token_limit: int = 400) -> str:
         value = facts.get(key)
         if not value:
             continue
-        rendered = ", ".join(str(item) for item in value) if isinstance(value, list) else str(value)
+        rendered = _render_session_value(value)
         parts.append(f"{key}={rendered}")
     text = "ContextGuard resume capsule: " + "; ".join(parts)
     while estimate_tokens(text) > token_limit and parts:

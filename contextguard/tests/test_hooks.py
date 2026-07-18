@@ -232,13 +232,44 @@ def test_pre_compact_persists_compact_session_facts(tmp_path: Path):
         {"current_objective": "finish policy", "changed_files": ["a.py"], "transcript": "x" * 10000},
         tmp_path,
     )
-    assert result == {}
+    assert result["hookSpecificOutput"]["hookEventName"] == "PreCompact"
+    assert "ContextGuard resume capsule:" in result["hookSpecificOutput"]["additionalContext"]
     capsule = (tmp_path / ".contextguard" / "sessions" / "latest.json").read_text()
     assert "finish policy" in capsule
     assert "transcript" not in capsule
     checkpoint = json.loads(capsule)
     assert checkpoint["version"] == 2
     assert checkpoint["checkpoint_id"]
+
+
+def test_pre_compact_emits_bounded_resume_capsule(tmp_path: Path):
+    state = tmp_path / ".contextguard"
+    state.mkdir()
+    (state / "manifest.json").write_text("{}", encoding="utf-8")
+
+    result = run_hook(
+        "pre_compact.py",
+        {
+            "current_objective": "finish compaction",
+            "likely_relevant_files": ["contextguard/contextguard/context_capsule.py"],
+            "likely_relevant_symbols": ["build_session_capsule@contextguard/contextguard/context_capsule.py:46"],
+            "changed_files": ["contextguard/contextguard/session_state.py"],
+            "verified_tests": ["test_session_state.py::test_checkpoint_persistence_merges_sparse_updates"],
+            "known_failures": ["none"],
+            "active_constraints": ["keep the resume capsule bounded"],
+            "next_action": "run focused tests",
+            "transcript": "x" * 10000,
+        },
+        tmp_path,
+    )
+
+    context = result["hookSpecificOutput"]["additionalContext"]
+    assert "ContextGuard resume capsule:" in context
+    assert "current_objective=finish compaction" in context
+    assert "changed_files=contextguard/contextguard/session_state.py" in context
+    assert "verified_tests=test_session_state.py::test_checkpoint_persistence_merges_sparse_updates" in context
+    assert "next_action=run focused tests" in context
+    assert "transcript" not in context
 
 
 def test_pre_tool_use_denies_repeated_unchanged_read(tmp_path: Path):
