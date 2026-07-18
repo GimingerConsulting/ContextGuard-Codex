@@ -3,17 +3,13 @@
 <!-- BEGIN CONTEXTGUARD MANAGED SECTION -->
 ContextGuard policy: Adaptive Maximum Efficiency.
 
-- Session gate: start from the injected brief/map; expand exact files only when the brief is insufficient.
-- Orient once; Reuse unchanged reads; group repeated inspection; inspect files or symbols.
-- For tests, linters, builds; recursive listings or searches; `git diff`; or structured data or logs, run `.contextguard/bin/contextguard capture -- <command>` before stdout reaches Codex (`sh -lc`). This protects non-interactive runs and does not depend on lifecycle hook dispatch.
-- Never run `sed`, `tail`, `head`, `cat`, `awk`, `jq`, or `rg` directly on logs, artifacts, structured/generated output, or multiple files. Pipelines do not make output safe; capture the complete pipeline. Small, bounded source reads of one file may run directly.
-- Prefer `contextguard inspect` for 1-4 named source or structured files when one bounded tool call can replace repeated reads.
-- Prefer one failed test before a full suite. Reuse passing validation until relevant code changes.
-- Escalate only the missing evidence from the archived output; do not re-read compacted logs or test output.
-- Adaptive routing: scan prompt and likely files before delegation. High-risk work stays local; the routing lock is final, so do not inspect worker configuration. Otherwise use exactly one bounded `contextguard-worker` for nontrivial scope with an isolated prompt, never a full-history fork. Parent reviews the diff and final-validates; fall back locally on ambiguity or failure.
-- Do not narrate routine inspection or tool use, restate intent, echo source, or print unasked diffs.
-- Final responses: changed files, validation, and only real risks.
-- Never trade correctness, context, validation, security, or data integrity for brevity.
+- The first prompt already includes a bounded task evidence packet; use it to skip broad orientation and inspect only evidence still needed.
+- Use normal shell/source commands. Hooks optimize large output automatically; never call ContextGuard commands, help, brief, or archives yourself.
+- Read exact source once and reuse it. Batch independent reads and searches in one call.
+- After editing, combine targeted tests, the full suite, and the diff check in one validation call when safe; reuse passing evidence.
+- Do not scan `.contextguard`, generated docs, caches, or archives.
+- Preserve correctness, security, validation, and data integrity. Work locally unless delegation clearly saves calls.
+- Stop once evidence is sufficient. Keep reasoning concise; final: changed files, validation, and real risks.
 
 Project: existing.
 <!-- END CONTEXTGUARD MANAGED SECTION -->
