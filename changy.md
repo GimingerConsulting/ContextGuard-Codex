@@ -8,6 +8,7 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Marketplace release build `0.9.3+codex.20260718183136` passed 251 tests and isolated installed-copy acceptance before publication.
 - Installation acceptance remains fail-closed on correctness; the marketing claim remains the measured one-pair result of 57.72% fewer total tokens, 61.54% fewer commands, and 42.00% lower standard GPT-5.6 Sol API cost with 144/144 hidden tests in both arms.
 - The ContextGuardWebsite repository is updated separately with the same bounded claim and an explicit one-pair/non-subscription-guarantee disclaimer.
+- Website commit `fd706f0` was initially blocked by Vercel because its local author email was not associated with the authorized GitHub account. The website checkout now uses the verified GitHub noreply identity; non-destructive deploy commit `391e4d4` completed successfully and the production domain was checked for the 0.9.3 build, headline, exact-cost section, and disclaimer.
 
 ## 2026-07-18 Transparent Zero-Roundtrip ContextGuard
 
