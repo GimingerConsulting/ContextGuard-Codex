@@ -74,22 +74,12 @@ def test_managed_policy_requires_host_independent_capture_runner(tmp_path: Path)
     )
 
     assert ".contextguard/bin/contextguard capture --" in policy
-    assert "tests, linters, builds" in policy
-    assert "recursive listings or searches" in policy
-    assert "git diff" in policy
-    assert "structured data or logs" in policy
-    assert "sh -lc" in policy
     assert "before stdout reaches Codex" in policy
-    assert "non-interactive" in policy
-    assert "does not depend on lifecycle hook dispatch" in policy
-    assert "Reuse unchanged reads" in policy
-    assert "group repeated inspection" in policy
-    assert "Never trade correctness" in policy
-    assert "Never run `sed`, `tail`, `head`, `cat`, `awk`, `jq`, or `rg` directly" in policy
-    assert "multiple files" in policy
-    assert "Pipelines do not make output safe" in policy
-    assert "Small, bounded source reads" in policy
-    assert len(policy.encode()) < 2000
+    assert "tests, builds, logs, diffs, search" in policy
+    assert "successful capture summary is final" in policy
+    assert "at most one archive per task" in policy
+    assert "Budgets are advisory" in policy
+    assert len(policy.encode()) < 1400
 def test_public_readme_documents_license_terms():
     readme = (ROOT / "README.md").read_text()
 

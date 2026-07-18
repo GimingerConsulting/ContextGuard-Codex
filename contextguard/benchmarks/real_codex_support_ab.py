@@ -44,6 +44,22 @@ Do not weaken, delete, or skip tests. Work directly in the repository and finish
 """
 
 RUN_ORDERS = [("raw", "contextguard"), ("contextguard", "raw"), ("raw", "contextguard")]
+BENCHMARK_MODEL = os.environ.get("CONTEXTGUARD_BENCHMARK_MODEL", "gpt-5.6-sol")
+REASONING_EFFORT = os.environ.get("CONTEXTGUARD_BENCHMARK_REASONING_EFFORT", "medium")
+SOL_CREDITS_PER_MILLION = {"uncached_input": 125.0, "cached_input": 12.5, "output": 750.0}
+
+
+def sol_credit_cost(run: dict) -> float:
+    input_tokens = int(run.get("input_tokens", 0))
+    cached = min(input_tokens, int(run.get("cached_input_tokens", 0)))
+    uncached = max(0, input_tokens - cached)
+    output = int(run.get("output_tokens", 0))
+    credits = (
+        uncached * SOL_CREDITS_PER_MILLION["uncached_input"]
+        + cached * SOL_CREDITS_PER_MILLION["cached_input"]
+        + output * SOL_CREDITS_PER_MILLION["output"]
+    ) / 1_000_000
+    return round(credits, 6)
 
 TICKET = """# Support ticket INC-4821
 
@@ -172,9 +188,22 @@ def validate_fixture(root: Path) -> dict:
 
 def build_codex_command(project: Path, *, optimized: bool) -> list[str]:
     command = shlex.split(os.environ.get("CONTEXTGUARD_CODEX_COMMAND", "codex"))
+    if optimized:
+        compact_limit = os.environ.get("CONTEXTGUARD_AUTO_COMPACT_TOKEN_LIMIT", "").strip()
+        if compact_limit:
+            command.extend([
+                "-c", f"model_auto_compact_token_limit={int(compact_limit)}",
+                "-c", 'model_auto_compact_token_limit_scope="total"',
+            ])
+        tool_limit = os.environ.get("CONTEXTGUARD_TOOL_OUTPUT_TOKEN_LIMIT", "").strip()
+        if tool_limit:
+            command.extend(["-c", f"tool_output_token_limit={int(tool_limit)}"])
+        verbosity = os.environ.get("CONTEXTGUARD_MODEL_VERBOSITY", "").strip()
+        if verbosity:
+            command.extend(["-c", f'model_verbosity="{verbosity}"'])
     command.extend([
         "exec", "--json", "--ephemeral", "--ignore-rules",
-        "--model", "gpt-5.5", "-c", 'model_reasoning_effort="medium"',
+        "--model", BENCHMARK_MODEL, "-c", f'model_reasoning_effort="{REASONING_EFFORT}"',
         "--sandbox", "danger-full-access", "-c", 'approval_policy="never"',
         "-c", "features.plugins=false", "-C", str(project), PROMPT,
     ])
@@ -209,14 +238,57 @@ def _run_one(kind: str, root: Path, artifact_dir: Path, timeout: int) -> dict:
     )
 
 
-def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
+def build_release_gate(pairs: list[dict], aggregate: dict[str, dict]) -> dict[str, object]:
+    pair_reductions = []
+    commands_not_increased = True
+    usage_complete = True
+    for pair in pairs:
+        raw_total = int(pair["raw"]["input_tokens"]) + int(pair["raw"]["output_tokens"])
+        guarded_total = int(pair["contextguard"]["input_tokens"]) + int(pair["contextguard"]["output_tokens"])
+        pair_reductions.append(round((raw_total - guarded_total) / raw_total * 100, 2) if raw_total else 0.0)
+        commands_not_increased = commands_not_increased and (
+            int(pair["contextguard"]["command_executions"]) <= int(pair["raw"]["command_executions"])
+        )
+        usage_complete = usage_complete and bool(pair["raw"].get("usage_event_seen")) and bool(
+            pair["contextguard"].get("usage_event_seen")
+        )
+    total_change = aggregate["total_tokens"]["median_change_percent"]
+    credit_change = aggregate["sol_credits"]["median_change_percent"]
+    median_reduction = -float(total_change) if total_change is not None else None
+    credit_reduction = -float(credit_change) if credit_change is not None else None
+    quality_passed = all(bool(pair.get("accepted")) for pair in pairs)
+    passed = all(
+        (
+            quality_passed,
+            usage_complete,
+            credit_reduction is not None and credit_reduction >= 50.0,
+            all(reduction > 0 for reduction in pair_reductions),
+            commands_not_increased,
+        )
+    )
+    return {
+        "passed": passed,
+        "quality_passed": quality_passed,
+        "median_total_token_reduction_percent": round(median_reduction, 2) if median_reduction is not None else None,
+        "median_sol_credit_reduction_percent": round(credit_reduction, 2) if credit_reduction is not None else None,
+        "minimum_required_percent": 50.0,
+        "pair_total_token_reductions_percent": pair_reductions,
+        "all_pairs_positive": all(reduction > 0 for reduction in pair_reductions),
+        "commands_not_increased": commands_not_increased,
+        "usage_complete": usage_complete,
+    }
+
+
+def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: int = 3) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     pairs = []
-    for index, order in enumerate(RUN_ORDERS, start=1):
+    selected_orders = RUN_ORDERS[:pair_count]
+    for index, order in enumerate(selected_orders, start=1):
         results = {}
         for kind in order:
             with tempfile.TemporaryDirectory(prefix=f"contextguard-support-ab-{index}-{kind}-") as tmp:
                 results[kind] = _run_one(kind, Path(tmp), output_dir / f"pair-{index}" / kind, timeout)
+                results[kind]["sol_credits"] = sol_credit_cost(results[kind])
         raw_core = {key: results["raw"]["validation"]["canonical_output"].get(key) for key in ("sku", "quantity", "remaining", "ok")}
         contextguard_core = {key: results["contextguard"]["validation"]["canonical_output"].get(key) for key in ("sku", "quantity", "remaining", "ok")}
         accepted = all([
@@ -230,7 +302,7 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
                 results["contextguard"]["capture_runner_used"],
         ])
         pairs.append({"pair": index, "order": list(order), "accepted": accepted, **results})
-    keys = ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "reasoning_output_tokens", "tool_output_bytes", "elapsed_seconds", "command_executions"]
+    keys = ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "reasoning_output_tokens", "tool_output_bytes", "elapsed_seconds", "command_executions", "sol_credits"]
     aggregate = {}
     for key in keys:
         raw_values = [pair["raw"][key] for pair in pairs]
@@ -244,14 +316,36 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800) -> dict:
             "contextguard_median": cg_median,
             "median_change_percent": percent_change(raw_median, cg_median),
         }
+    raw_totals = [int(pair["raw"]["input_tokens"]) + int(pair["raw"]["output_tokens"]) for pair in pairs]
+    contextguard_totals = [
+        int(pair["contextguard"]["input_tokens"]) + int(pair["contextguard"]["output_tokens"])
+        for pair in pairs
+    ]
+    raw_total_median = statistics.median(raw_totals)
+    contextguard_total_median = statistics.median(contextguard_totals)
+    aggregate["total_tokens"] = {
+        "raw_values": raw_totals,
+        "contextguard_values": contextguard_totals,
+        "raw_median": raw_total_median,
+        "contextguard_median": contextguard_total_median,
+        "median_change_percent": percent_change(raw_total_median, contextguard_total_median),
+    }
+    release_gate = build_release_gate(pairs, aggregate)
     result = {
-        "benchmark": "real-codex-human-support-ticket-three-pair-ab",
-        "model": "gpt-5.5", "reasoning_effort": "medium",
-        "run_orders": [list(order) for order in RUN_ORDERS],
+        "benchmark": f"real-codex-human-support-ticket-{pair_count}-pair-ab",
+        "model": BENCHMARK_MODEL, "reasoning_effort": REASONING_EFFORT,
+        "run_orders": [list(order) for order in selected_orders],
+        "optimized_runtime": {
+            "tool_output_token_limit": os.environ.get("CONTEXTGUARD_TOOL_OUTPUT_TOKEN_LIMIT") or None,
+            "model_verbosity": os.environ.get("CONTEXTGUARD_MODEL_VERBOSITY") or None,
+            "auto_compact_token_limit": os.environ.get("CONTEXTGUARD_AUTO_COMPACT_TOKEN_LIMIT") or None,
+        },
+        "sol_credit_rates_per_million": SOL_CREDITS_PER_MILLION,
         "all_pairs_accepted": all(pair["accepted"] for pair in pairs),
+        "release_gate": release_gate,
         "pairs": pairs, "aggregate": aggregate,
         "limitations": [
-            "Three controlled pairs reduce but do not eliminate model stochasticity.",
+            f"{pair_count} controlled pair(s) do not eliminate model stochasticity.",
             "Hidden tests improve quality independence but cannot represent every production repository.",
             "Codex subscription quota accounting is not exposed by the CLI.",
         ],
@@ -266,6 +360,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=PLUGIN_ROOT / "benchmarks/results/real-codex-support-ab-2026-06-13")
     parser.add_argument("--timeout", type=int, default=1800)
+    parser.add_argument("--pairs", type=int, choices=(1, 3), default=3)
     args = parser.parse_args(argv)
     if args.self_check:
         with tempfile.TemporaryDirectory(prefix="contextguard-support-check-") as tmp:
@@ -276,9 +371,9 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"before": before["exit_code"], "after": after["exit_code"], "hidden_passed": after["hidden_passed_tests"], "canonical": after["canonical_output"]}, sort_keys=True))
             return int(after["exit_code"] != 0)
     if args.run:
-        result = execute_three_run_ab(args.output_dir, timeout=args.timeout)
+        result = execute_three_run_ab(args.output_dir, timeout=args.timeout, pair_count=args.pairs)
         print(json.dumps(result["aggregate"], indent=2, sort_keys=True))
-        return int(not result["all_pairs_accepted"])
+        return int(not result["release_gate"]["passed"])
     parser.error("choose --self-check or --run")
     return 2
 

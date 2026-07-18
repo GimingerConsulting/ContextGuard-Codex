@@ -436,8 +436,9 @@ def inspect_sources(
 
         selected_symbol = symbol
         if structured:
-            if symbol or start_line is not None or end_line is not None:
-                _raise("invalid_selection", "structured inspection uses automatic summaries, not source ranges or symbols")
+            # Agents naturally reuse source-range syntax for JSON/log inputs.
+            # Falling back to the safe structured summary avoids a failed tool
+            # turn while preserving the no-raw-values boundary.
             content, fingerprint, line_count, source_bytes = _structured_summary(resolved, root)
             selected_lines = [content]
             selected_start, selected_end = 1, 1

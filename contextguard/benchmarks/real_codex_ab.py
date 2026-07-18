@@ -194,6 +194,7 @@ def validate_fixture(root: Path) -> dict:
 
 def parse_codex_jsonl(text: str) -> dict:
     usage = {}
+    turn_completed_events = 0
     tool_output_bytes = 0
     command_executions = 0
     file_changes = 0
@@ -205,6 +206,7 @@ def parse_codex_jsonl(text: str) -> dict:
         except json.JSONDecodeError:
             continue
         if event.get("type") == "turn.completed":
+            turn_completed_events += 1
             usage = event.get("usage") or usage
         if event.get("type") != "item.completed":
             continue
@@ -222,6 +224,8 @@ def parse_codex_jsonl(text: str) -> dict:
     input_tokens = int(usage.get("input_tokens", 0))
     cached_tokens = int(usage.get("cached_input_tokens", 0))
     return {
+        "usage_event_seen": turn_completed_events > 0,
+        "turn_completed_events": turn_completed_events,
         "input_tokens": input_tokens,
         "cached_input_tokens": cached_tokens,
         "uncached_input_tokens": max(0, input_tokens - cached_tokens),

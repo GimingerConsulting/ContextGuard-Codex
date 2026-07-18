@@ -96,11 +96,24 @@ def _prune_archives(tmp_dir: Path, *, keep: set[Path] | None = None) -> int:
     for path in tmp_dir.glob("command-*"):
         key = path.name.split(".stdout.txt", 1)[0].split(".stderr.txt", 1)[0].split(".summary.json", 1)[0]
         groups.setdefault(key, []).append(path)
-    ordered = sorted(groups.values(), key=lambda items: max(item.stat().st_mtime for item in items), reverse=True)
+    def existing_stats(paths: list[Path]) -> list[os.stat_result]:
+        stats = []
+        for path in paths:
+            try:
+                stats.append(path.stat())
+            except FileNotFoundError:
+                pass
+        return stats
+
+    ordered = sorted(
+        groups.values(),
+        key=lambda items: max((stat.st_mtime for stat in existing_stats(items)), default=0.0),
+        reverse=True,
+    )
     retained_bytes = 0
     removed = 0
     for index, paths in enumerate(ordered):
-        size = sum(path.stat().st_size for path in paths if path.exists())
+        size = sum(stat.st_size for stat in existing_stats(paths))
         must_keep = any(path.resolve() in keep for path in paths)
         allowed = index < command_limit and retained_bytes + size <= byte_limit
         if must_keep or allowed:

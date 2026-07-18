@@ -54,6 +54,25 @@ def test_prune_archives_caps_command_groups(tmp_path: Path, monkeypatch):
     assert len(list(tmp_path.glob("command-*"))) == 6
 
 
+def test_prune_archives_tolerates_a_concurrent_pruner(tmp_path: Path, monkeypatch):
+    target = tmp_path / "command-20260101T000000Z-1.stdout.txt"
+    target.write_text("output", encoding="utf-8")
+    original_stat = Path.stat
+    vanished = False
+
+    def racing_stat(path: Path, *args, **kwargs):
+        nonlocal vanished
+        if path == target and not vanished:
+            vanished = True
+            target.unlink()
+            raise FileNotFoundError(target)
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", racing_stat)
+
+    assert _prune_archives(tmp_path) == 0
+
+
 def test_passing_test_summary_uses_one_line_codec():
     rendered = _render_summary([], {
         "summary_path": "/tmp/result.json",

@@ -383,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("orient")
     p.add_argument("--query", required=True)
     p.add_argument("--path")
-    p.add_argument("--budget", type=int, default=420)
+    p.add_argument("--budget", type=int, default=900)
     p.set_defaults(func=orient)
     p = sub.add_parser("uninstall-project")
     p.add_argument("--path")

@@ -2,6 +2,14 @@
 
 See [contextguard/changy.md](contextguard/changy.md) for the detailed implementation protocol.
 
+## 2026-07-18 GPT-5.6 Sol RAW/ContextGuard Gate Rejected
+
+- Researched the current OpenAI guidance and changed the primary economics metric to Sol credits: uncached input 125, cached input 12.5, and output 750 credits per million tokens. This prevents cheap cached input and expensive output from being treated as equal.
+- Added exact usage-event checks, one- or three-pair screening, fail-closed handling for unavailable models, GPT-5.6 Sol support, bounded tool output, low-verbosity configuration, adaptive greenfield/existing-repo orientation, structured-inspection fallback, and concurrent archive-pruning protection.
+- The real GPT-5.6 Sol support-ticket screen preserved quality in both arms (144/144 hidden tests), but ContextGuard regressed from 14.1819 to 20.88485 Sol credits (+47.26%) and from 210,101 to 590,196 total tokens (+180.91%). Commands rose from 8 to 26 despite tool output falling from 28,677 to 17,077 bytes.
+- Root cause: repeated capture/retrieval turns and redundant orientation replay dominated the saved tool bytes. The generated policy now uses the exact local binary path, bounded source inspection, successful summaries as terminal evidence, at most one archive retrieval, and one failing test followed by one full suite.
+- The 50% release gate failed, so no three-pair rerun and no website savings claim were made. The next live run remains blocked on cheap local evidence that the command/turn count can match or beat RAW.
+
 ## 2026-07-18 Execution Frontier Resume Capsule
 
 - Fixed sparse PreCompact checkpoint writes so newer partial events no longer erase previously verified objective, file, test, and constraint state.

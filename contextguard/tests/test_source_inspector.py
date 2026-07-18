@@ -290,6 +290,17 @@ def test_structured_summary_keeps_safe_operational_scalars(tmp_path: Path) -> No
     assert "account=123" not in rendered
 
 
+def test_structured_selection_safely_falls_back_instead_of_spending_a_failed_turn(tmp_path: Path) -> None:
+    scenario = write_source(tmp_path, "scenario.json", '{"quantity":3,"token":"hidden"}\n')
+
+    result = inspect_sources(tmp_path, [scenario], start_line=1, end_line=80)
+
+    entry = result["files"][0]
+    assert entry["selection"]["mode"] == "structured_summary"
+    assert "quantity=3" in entry["content"]
+    assert "hidden" not in entry["content"]
+
+
 def test_inspect_sources_rejects_symlink_escape(tmp_path: Path) -> None:
     root = tmp_path
     safe = write_source(root, "src/safe.py", "print('safe')\n")

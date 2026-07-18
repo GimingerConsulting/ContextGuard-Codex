@@ -4,8 +4,10 @@ from benchmarks.real_codex_support_ab import (
     PROMPT,
     RUN_ORDERS,
     apply_reference_solution,
+    build_release_gate,
     create_fixture,
     validate_fixture,
+    sol_credit_cost,
 )
 
 
@@ -45,3 +47,29 @@ def test_agent_repository_does_not_contain_hidden_tests(tmp_path: Path):
 def test_each_trial_uses_a_separate_temporary_root():
     source = (Path(__file__).resolve().parents[1] / "benchmarks/real_codex_support_ab.py").read_text()
     assert 'prefix=f"contextguard-support-ab-{index}-{kind}-"' in source
+
+
+def test_release_gate_requires_50_percent_total_savings_and_no_extra_commands():
+    pairs = [
+        {
+            "accepted": True,
+            "raw": {"input_tokens": 100, "output_tokens": 20, "command_executions": 4, "usage_event_seen": True},
+            "contextguard": {"input_tokens": 45, "output_tokens": 10, "command_executions": 4, "usage_event_seen": True},
+        }
+        for _ in range(3)
+    ]
+    aggregate = {
+        "total_tokens": {"median_change_percent": -54.17},
+        "sol_credits": {"median_change_percent": -52.27},
+    }
+
+    assert build_release_gate(pairs, aggregate)["passed"] is True
+
+    pairs[0]["contextguard"]["command_executions"] = 5
+    assert build_release_gate(pairs, aggregate)["passed"] is False
+
+
+def test_sol_credit_cost_uses_official_cached_input_discount():
+    run = {"input_tokens": 1_000_000, "cached_input_tokens": 900_000, "output_tokens": 10_000}
+
+    assert sol_credit_cost(run) == 31.25
