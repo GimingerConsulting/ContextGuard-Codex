@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -12,12 +13,13 @@ from .index import refresh_index
 from .large_file import summarize_large_file
 from .metrics import report as metrics_report
 from .output_capture import capture
+from .output_retrieval import retrieve_output
 from .output_policy import POLICY_NAME
 from .onboarding import initialize_project
 from .project import detect_project
 from .project_runner import install_project_runner, project_runner_ready, runner_path
 from .repo_map import detect_repo_facts
-from .session_state import load_session_state
+from .session_state import load_session_state, record_working_set
 from .database import connect, increment
 from .source_inspector import InspectionError, inspect_sources
 from .context_brief import build_context_brief, expand_context, write_context_map
@@ -32,6 +34,8 @@ from .cross_session import load_cross_session_summary, render_cross_session_brie
 from .session_cost import session_cost_report
 from .ledger import ledger_summary
 from .task_evidence import build_task_evidence
+from .snapshot_store import snapshot_source
+from .budget_enforcer import evaluate_budget, render_budget_feedback
 
 
 def init_project(args: argparse.Namespace) -> int:
@@ -279,7 +283,42 @@ def expand_evidence(args: argparse.Namespace) -> int:
     return 0 if data.get("ok") else 2
 
 
+def get_output(args: argparse.Namespace) -> int:
+    line_range = None
+    if args.lines:
+        try:
+            start_text, end_text = args.lines.split(":", 1)
+            line_range = (int(start_text), int(end_text))
+        except (ValueError, TypeError):
+            print(json.dumps({"ok": False, "error": "lines must be START:END"}, sort_keys=True))
+            return 2
+    try:
+        data = retrieve_output(
+            Path.cwd(),
+            args.handle,
+            lines=line_range,
+            pattern=args.grep,
+            stream=args.stream,
+        )
+    except ValueError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, sort_keys=True))
+        return 2
+    print(json.dumps(data, separators=(",", ":"), sort_keys=True))
+    return 0
+
+
 def inspect(args: argparse.Namespace) -> int:
+    command_parts = ["contextguard", "inspect", *args.files]
+    if args.symbol:
+        command_parts.extend(["--symbol", args.symbol])
+    if args.start_line is not None:
+        command_parts.extend(["--start-line", str(args.start_line)])
+    if args.end_line is not None:
+        command_parts.extend(["--end-line", str(args.end_line)])
+    budget = evaluate_budget(Path.cwd(), shlex.join(command_parts))
+    if budget.action == "deny":
+        print(render_budget_feedback(budget))
+        return 2
     try:
         data = inspect_sources(
             Path.cwd(),
@@ -307,7 +346,24 @@ def inspect(args: argparse.Namespace) -> int:
 def orient(args: argparse.Namespace) -> int:
     info = detect_project(Path(args.path).resolve() if args.path else None)
     text = build_task_evidence(info.root, args.query, token_limit=args.budget)
+    if text:
+        record_working_set(info.root, text)
     print(text or "ContextGuard task evidence: no high-confidence packet; start with scoped search.")
+    return 0
+
+
+def snapshot(args: argparse.Namespace) -> int:
+    info = detect_project(Path(args.path).resolve() if args.path else None)
+    budget = evaluate_budget(info.root, shlex.join(["contextguard", "snapshot", args.file]))
+    if budget.action == "deny":
+        print(render_budget_feedback(budget))
+        return 2
+    try:
+        result = snapshot_source(info.root, args.file)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc), "file": args.file}, sort_keys=True))
+        return 2
+    print(result["rendered"], end="")
     return 0
 
 
@@ -328,6 +384,13 @@ def main(argv: list[str] | None = None) -> int:
         return capture(Path.cwd(), command)
 
     p.set_defaults(func=run_capture)
+    p = sub.add_parser("get")
+    p.add_argument("handle")
+    selection = p.add_mutually_exclusive_group()
+    selection.add_argument("--lines")
+    selection.add_argument("--grep")
+    p.add_argument("--stream", choices=("both", "stdout", "stderr"), default="both")
+    p.set_defaults(func=get_output)
     p = sub.add_parser("large-file")
     p.add_argument("file")
     p.add_argument("--contains")
@@ -385,6 +448,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--path")
     p.add_argument("--budget", type=int, default=900)
     p.set_defaults(func=orient)
+    p = sub.add_parser("snapshot")
+    p.add_argument("file")
+    p.add_argument("--path")
+    p.set_defaults(func=snapshot)
     p = sub.add_parser("uninstall-project")
     p.add_argument("--path")
     p.add_argument("--yes", action="store_true")

@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -149,6 +150,33 @@ def test_capture_unexplained_failure_requests_bounded_escalation(tmp_path: Path)
     assert "escalation: failed_without_diagnostic" in result.stdout
     assert "bounded slice" in result.stdout
     assert len(result.stdout.encode()) < 1400
+
+
+def test_orient_keeps_exact_working_set_evidence_recoverable(tmp_path: Path):
+    (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    run_cli(["init"], tmp_path)
+
+    oriented = run_cli(["orient", "--query", "Investigate the implementation in app.py"], tmp_path)
+    repeated = run_cli(["inspect", "app.py"], tmp_path)
+    bounded = run_cli(["inspect", "app.py", "--symbol", "run"], tmp_path)
+
+    assert oriented.returncode == 0
+    assert "app.py sha=" in oriented.stdout
+    assert repeated.returncode == 0
+    assert "app.py" in repeated.stdout
+    assert bounded.returncode == 0
+
+
+def test_successful_capture_does_not_invite_archive_roundtrip(tmp_path: Path):
+    run_cli(["init"], tmp_path)
+    captured = run_cli(
+        ["capture", "--", sys.executable, "-c", "print('needle line')\nprint('other line')\nprint('x' * 5000)"],
+        tmp_path,
+    )
+    assert captured.returncode == 0
+    assert re.search(r"cg://output/[0-9a-f]{12}", captured.stdout) is None
+    assert "archive:" not in captured.stdout
+    assert "no further inspection needed" in captured.stdout
 
 
 def test_project_runner_capture_compacts_before_output_reaches_host(tmp_path: Path):

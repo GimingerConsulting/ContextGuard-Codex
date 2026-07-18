@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.3
+
+- Replaced the manual ContextGuard command workflow with transparent zero-roundtrip optimization: Codex uses normal shell/source commands while hooks compact eligible large output automatically.
+- Added a content-addressed task-evidence packet that is injected once per materially identical task; repeated and low-confidence prompts remain silent.
+- Made successful and repeated capture summaries terminal so only a failed result without a useful diagnostic exposes one bounded archive expansion path.
+- Added exact GPT-5.6 Sol API-dollar accounting and a fail-closed 50% release gate. The accepted one-pair screen kept 144/144 hidden-test quality while reducing total tokens 57.72%, commands 61.54%, and standard API cost 42.00%; the 50% cost claim remains rejected pending replication.
+- Changed large-output capture to stream complete stdout and stderr into the local archive while keeping only the reducer's in-memory sample bounded.
+- Added reversible `cg://output/<sha>` handles plus bounded `contextguard get` metadata, line-range and regex retrieval.
+- Replaced hard exploration and repeated-read denials with non-blocking advice so missing evidence remains recoverable without retry turns.
+- Stopped automatically rewriting exact multi-file reads into lossy structural outlines.
+- Kept conversation compaction conservative and the stable instruction prefix cache-friendly; optimization happens before noisy tool output enters context.
+
 ## 0.9.2
 
 - Added deterministic output-kind routing for tests, diffs, searches, JSON, repetitive logs and generic output without adding a model dependency.

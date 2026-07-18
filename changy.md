@@ -2,6 +2,13 @@
 
 See [contextguard/changy.md](contextguard/changy.md) for the detailed implementation protocol.
 
+## 2026-07-18 ContextGuard 0.9.3 Installation And Website Release
+
+- Promoted the verified transparent zero-roundtrip implementation to the 0.9.3 plugin candidate and aligned plugin/package versions, release notes, CLI snapshot support, dependency evidence, and installation documentation.
+- Marketplace release build `0.9.3+codex.20260718183136` passed 251 tests and isolated installed-copy acceptance before publication.
+- Installation acceptance remains fail-closed on correctness; the marketing claim remains the measured one-pair result of 57.72% fewer total tokens, 61.54% fewer commands, and 42.00% lower standard GPT-5.6 Sol API cost with 144/144 hidden tests in both arms.
+- The ContextGuardWebsite repository is updated separately with the same bounded claim and an explicit one-pair/non-subscription-guarantee disclaimer.
+
 ## 2026-07-18 Transparent Zero-Roundtrip ContextGuard
 
 - Replaced the manual ContextGuard CLI workflow with transparent optimization: the managed policy now tells Codex to use normal shell/source commands while hooks handle eligible large output automatically. It explicitly forbids ContextGuard help, brief, archive, and manual wrapper calls, batches independent inspection, combines final validation, and stops investigation once evidence is sufficient.
@@ -23,8 +30,21 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 
 - Fixed sparse PreCompact checkpoint writes so newer partial events no longer erase previously verified objective, file, test, and constraint state.
 - Expanded the checkpoint allowlist with execution-frontier fields and made the PreCompact hook emit a bounded resume capsule with objective, relevant files/symbols, changed files, verified tests/failures/constraints, and next action.
-- Added regression coverage for checkpoint merges, capsule truncation/prioritization, PreCompact additionalContext, and a cheap offline raw-vs-capsule comparison.
+- Added regression coverage for checkpoint merges, capsule truncation/prioritization, PreCompact `additionalContext`, and a cheap offline raw-vs-capsule comparison.
 - Validation: 44 focused checkpoint, capsule, hook, cross-session, and session-gate tests passed; the deterministic compaction-boundary fixture enforces at least 50% fewer estimated rehydration tokens than RAW rereads.
+
+## 2026-07-13 — 0.9.3 context-firewall rebuild, release gate rejected
+
+- Implemented complete streamed raw-output archives, reversible `cg://output/<sha>` retrieval, bounded line/regex disclosure, non-blocking evidence budgets, semantic-safe source rewriting, cache-stable prompt behavior, and an explicit ≥50% real-Codex release gate.
+- Deterministic payload benchmarks passed at 98.59% and 97.51% visible-token reduction with exact raw roundtrips; the complete repository suite, hidden fixture acceptance, compilation, and package build passed.
+- The three-pair real Codex gate preserved exact quality but regressed total tokens 10.88% at the median. A follow-up exact-source screen used fewer commands and 65.63% less tool output but still regressed total tokens 2.39% because cached-prefix replay outweighed the savings.
+- No push, installation, or release was performed. The durable policy was reduced to its mechanical core; another expensive live A/B is deferred until local evidence indicates a plausible path to the 50% gate.
+
+## 2026-07-12 — 0.9.3 optimization attempt rejected
+
+- Dependency packets, snapshot/delta reads, native compaction, orient-first routing, and a mechanical exploration cap were tested.
+- The best single screen saved 48.99%, but its three-pair repeat regressed 35.01% at the median; the cap regressed 38.81%.
+- No release, push, or installation was performed. Version 0.9.2 remains the trusted installed version.
 
 ## 2026-06-14 Capture Runner Enforcement 0.4.1
 
@@ -530,3 +550,12 @@ See [contextguard/changy.md](contextguard/changy.md) for the detailed implementa
 - Final release validation passed 226 tests, source compilation, whitespace checks, plugin manifest validation, and 0.9.2 wheel/sdist builds.
 - Published `82d8641` to authoritative GitHub `main`, upgraded the configured marketplace, installed/enabled plain `contextguard@contextguard` 0.9.2, refreshed the project from that installed copy, and verified the stable local runtime matches the released compactor/inspector with the new routing smoke passing.
 - Installed verification then caught a quoted `sh -lc 'git status ...'` edge case that could collapse numbered paths as repetitive logs; fixed command-boundary recognition and added a regression before the final 0.9.2 refresh.
+
+## 2026-07-12 — Dependency-aware working set and snapshot/delta experiment
+
+- Root cause from accepted 0.9.2 traces: optimized arms still emitted a median 13,325 bytes across 16 commands before the first edit because task evidence named the ticket/tests but omitted imported implementation bodies and attached data/log facts.
+- Implemented dependency-following task packets with bounded exact symbol excerpts and a strict reuse contract, plus SHA-256/CAS source snapshots that return 70-byte unchanged references or deterministic deltas after edits.
+- Deterministic gate: 2,232-byte working set versus 13,325 bytes of measured 0.9.2 pre-edit observations (-83.25%); unchanged reread reduction 88.85%; changed reread 518 bytes.
+- Release remains blocked until the unchanged hidden-quality benchmark proves a three-pair total-input result above both the current 19.59% median and the older 42.53% single-pair headline.
+- First real screen was rejected despite exact quality: total input improved only 23.22% while tool output improved 70.50%. Trace showed `orient` followed by redundant rereads of the same working set, leaving 21 commands.
+- Converted reuse from advice to host-independent enforcement: orient receipts persist hashes; unchanged whole-file inspect/snapshot and repository relisting are denied, bounded symbol/range follow-up remains allowed, and worker shell discovery is forbidden.

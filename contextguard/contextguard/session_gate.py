@@ -15,7 +15,7 @@ def build_session_gate(root: Path, *, include_surface: bool = False, brief_budge
     checkpoint = load_checkpoint(root)
     parts: list[str] = [
         f"ContextGuard session gate ({POLICY_NAME}; project={info.kind}):",
-        "Use capture for tests, builds, logs, diffs, and broad search; inspect 1-4 files; expand archives only for missing evidence.",
+        "Use capture for tests, builds, logs, diffs, and broad search; read exact source once; expand archives only for missing evidence.",
         "Reuse unchanged reads and passing validation. Preserve correctness, security, and exact failure evidence.",
         "Output: no routine narration; final answer is changed files, validation, and real risks unless the user asks for detail.",
     ]
