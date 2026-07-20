@@ -2,6 +2,12 @@
 
 See [contextguard/changy.md](contextguard/changy.md) for the detailed implementation protocol.
 
+## 2026-07-20 — OpenAI Build Week submission documentation
+
+- Added a concise Build Week section to the public root README so judges can directly identify what was substantially extended during the event, how Codex and GPT-5.6 Sol accelerated the workflow, which failed experiment informed the final architecture, and where the representative Codex session can be found.
+- Kept the benchmark claims scoped to one controlled paired run and documented identical 144/144 hidden-test quality, avoiding a universal savings or subscription-quota claim.
+- No runtime code or installation behavior changed.
+
 ## 2026-07-18 ContextGuard 0.9.3 Installation And Website Release
 
 - Promoted the verified transparent zero-roundtrip implementation to the 0.9.3 plugin candidate and aligned plugin/package versions, release notes, CLI snapshot support, dependency evidence, and installation documentation.
