@@ -217,13 +217,13 @@ contextguard session-cost
 contextguard lifetime-savings
 ```
 
-`contextguard capture -- <command>` is the host-independent path for noisy tests, logs, builds, diffs and searches. It streams complete stdout and stderr to the local archive, gives Codex a compact evidence card, and returns a content-addressed handle. `contextguard get` first returns metadata only; add `--lines` or `--grep` to disclose only the exact missing evidence. `contextguard inspect` defaults to a compact structural outline of source files; use `--symbol` or an explicit line range when exact source is required. `contextguard session-cost` and `contextguard lifetime-savings` report local token and API-cost estimates; these are not verified Codex server-side billing values.
+`contextguard capture -- <command>` is the host-independent path for noisy tests, logs, builds, diffs and searches. It streams complete stdout and stderr to the local archive, gives Codex a compact evidence card, and returns a content-addressed handle. `contextguard get` first returns metadata only; add `--lines` or `--grep` to disclose only the exact missing evidence. `contextguard inspect` defaults to a compact structural outline of source files; use `--symbol` or an explicit line range when exact source is required. `contextguard session-cost` reads the matching local Codex JSONL trace and reports exact input, cached input, cache-write, output and reasoning token counts, the models used, per-model breakdowns and a standard API-cost equivalent. GPT-5.6 Sol, Terra and Luna use per-turn short/long-context prices. `contextguard lifetime-savings` remains a ContextGuard-ledger estimate.
 
 ## Known limitations
 
 - Savings are workload-dependent. ContextGuard helps most when commands produce large logs, repeated failures, big file listings, noisy test output or broad searches.
 - Small commands can cost slightly more than they save because the capture wrapper and summaries add a small fixed overhead.
-- Session pricing and lifetime savings are local estimates based on ContextGuard's ledger and model-price assumptions, not verified Codex server-side billing or usage-limit accounting.
+- Session token counts and model IDs come from local Codex traces. Dollar values use published standard API rates and are not verified Codex server-side billing, Codex subscription billing, service-tier/regional uplifts or usage-limit accounting. Unknown models remain visible but make the cost total incomplete.
 - ContextGuard preserves raw command output locally, but users still need to inspect the archived evidence when a compact summary is not enough.
 - Hook dispatch varies by Codex host surface and version. The managed `AGENTS.md` runner instructions are the stable fallback for non-interactive and host-independent use.
 - It does not replace tests, code review, security review, migration review or production validation.

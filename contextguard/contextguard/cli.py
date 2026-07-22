@@ -155,7 +155,7 @@ def refresh(args: argparse.Namespace) -> int:
 def _print_metric_block(title: str, data: dict[str, object]) -> None:
     print(title)
     for key, value in data.items():
-        suffix = " (estimate)" if "tokens" in key else ""
+        suffix = " (estimate)" if "estimate" in key else ""
         print(f"{key}: {value}{suffix}")
 
 
@@ -166,7 +166,7 @@ def report(args: argparse.Namespace) -> int:
     for key, value in data.items():
         if key in {"session_cost", "lifetime_savings", "ledger", "archive_index", "quota_proxy"}:
             continue
-        suffix = " (estimate)" if "tokens" in key else ""
+        suffix = " (estimate)" if "estimate" in key else ""
         print(f"{key}: {value}{suffix}")
     session_cost_data = data.get("session_cost")
     if isinstance(session_cost_data, dict):

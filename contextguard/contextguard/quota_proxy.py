@@ -12,7 +12,7 @@ DEFAULT_MIX = {
     "output_share": 0.04,
 }
 
-GPT55_RATES = {
+GPT56_SOL_RATES = {
     "uncached_input_per_m": 5.0,
     "cached_input_per_m": 0.5,
     "output_per_m": 30.0,
@@ -24,26 +24,26 @@ def estimate_api_cost(tokens_saved: int, *, savings_share: float = 0.41) -> dict
     saved_cost = (
         gross_tokens
         * DEFAULT_MIX["uncached_input_share"]
-        * GPT55_RATES["uncached_input_per_m"]
+        * GPT56_SOL_RATES["uncached_input_per_m"]
         / 1_000_000
     )
     saved_cost += (
         gross_tokens
         * DEFAULT_MIX["cached_input_share"]
-        * GPT55_RATES["cached_input_per_m"]
+        * GPT56_SOL_RATES["cached_input_per_m"]
         / 1_000_000
     )
     saved_cost += (
         gross_tokens
         * DEFAULT_MIX["output_share"]
-        * GPT55_RATES["output_per_m"]
+        * GPT56_SOL_RATES["output_per_m"]
         / 1_000_000
     ) * 0.2
     return {
         "estimated_gross_tokens": round(gross_tokens),
         "estimated_monthly_api_savings_usd": round(saved_cost * 30, 2),
         "estimated_daily_api_savings_usd": round(saved_cost, 4),
-        "pricing_model": "GPT-5.5 proxy",
+        "pricing_model": "GPT-5.6 Sol proxy",
     }
 
 

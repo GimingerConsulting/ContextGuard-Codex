@@ -2,6 +2,12 @@
 
 See [contextguard/changy.md](contextguard/changy.md) for the detailed implementation protocol.
 
+## 2026-07-22 — Exact model/token/cost reporting
+
+- Added Codex JSONL-backed session usage with authoritative model attribution, exact token categories, GPT-5.6 Sol/Terra/Luna short- and long-context API pricing, cache-write accounting, and per-model cost breakdowns.
+- Updated the legacy GPT-5.5 proxy label to GPT-5.6 Sol while retaining an explicit distinction between API-equivalent cost and Codex subscription billing.
+- Unknown future models still report their exact token usage but mark the aggregate API cost incomplete instead of silently applying a wrong price.
+
 ## 2026-07-20 — OpenAI Build Week submission documentation
 
 - Added a concise Build Week section to the public root README so judges can directly identify what was substantially extended during the event, how Codex and GPT-5.6 Sol accelerated the workflow, which failed experiment informed the final architecture, and where the representative Codex session can be found.
