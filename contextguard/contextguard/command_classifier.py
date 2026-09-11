@@ -10,13 +10,31 @@ class CommandDecision:
     reason: str
 
 
-def classify_command(command: str) -> CommandDecision:
-    try:
-        parts = shlex.split(command)
-    except ValueError:
-        return CommandDecision("allow", "Unable to parse shell safely; leaving command unchanged.")
-    if not parts:
-        return CommandDecision("allow", "Empty command.")
+_SHELL_NAMES = {"sh", "bash", "zsh", "dash", "ksh"}
+_SHELL_CONTROL_TOKENS = {";", "&&", "||", "|", "|&", "&", "then", "do", "else", "{"}
+
+
+def _shell_script(parts: list[str]) -> str | None:
+    if len(parts) < 3 or parts[0].rsplit("/", 1)[-1] not in _SHELL_NAMES:
+        return None
+    if parts[1] not in {"-c", "-lc", "--command"}:
+        return None
+    return parts[2]
+
+
+def _candidate_command_indexes(parts: list[str]) -> list[int]:
+    indexes = [0]
+    indexes.extend(index + 1 for index, token in enumerate(parts[:-1]) if token in _SHELL_CONTROL_TOKENS)
+    return sorted(set(index for index in indexes if index < len(parts)))
+
+
+def _shell_tokens(script: str) -> list[str]:
+    lexer = shlex.shlex(script, posix=True, punctuation_chars=";&|")
+    lexer.whitespace_split = True
+    return list(lexer)
+
+
+def _classify_parts(parts: list[str]) -> CommandDecision:
     joined = " ".join(parts)
     destructive = {"rm", "mv", "git reset", "git checkout", "git clean"}
     if any(joined.startswith(item) for item in destructive):
@@ -64,3 +82,35 @@ def classify_command(command: str) -> CommandDecision:
     if any(part in joined for part in ("node_modules", "dist/", "build/", "coverage/")):
         return CommandDecision("guide", "Command targets generated or dependency output.")
     return CommandDecision("allow", "Command appears small or already scoped.")
+
+
+def classify_command(command: str, *, _allow_shell_unwrap: bool = True) -> CommandDecision:
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return CommandDecision("allow", "Unable to parse shell safely; leaving command unchanged.")
+    if not parts:
+        return CommandDecision("allow", "Empty command.")
+
+    if _allow_shell_unwrap:
+        script = _shell_script(parts)
+        if script is not None:
+            try:
+                script_parts = _shell_tokens(script)
+            except ValueError:
+                script_parts = []
+            if script_parts:
+                for index in _candidate_command_indexes(script_parts):
+                    decision = classify_command(
+                        shlex.join(script_parts[index:]),
+                        _allow_shell_unwrap=False,
+                    )
+                    if decision.action == "capture":
+                        return CommandDecision(
+                            "capture",
+                            f"Shell envelope contains capturable output: {decision.reason}",
+                        )
+                    if decision.action == "guide":
+                        return decision
+
+    return _classify_parts(parts)

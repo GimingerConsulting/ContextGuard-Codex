@@ -1,6 +1,6 @@
 {
   "name": "contextguard",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Codex-native context optimization: capture runner, session gate, family codecs, lifetime savings, worker-risk lock, and adaptive evidence compaction.",
   "author": {
     "name": "Giminger Consulting",

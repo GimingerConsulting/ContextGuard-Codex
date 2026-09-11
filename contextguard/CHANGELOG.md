@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.5
+
+- Made automatic command routing shell-envelope aware for Codex's common `/bin/zsh -lc`, `bash -lc` and `sh -c` tool commands. Noisy inner tests, logs, searches and diffs now reach the capture boundary before stdout enters the host.
+- Preserved the exact original shell command inside the capture wrapper; no command is skipped, weakened or rewritten into a lossy source outline.
+- Extended the benchmark CLI with a synthetic shell-envelope routing section reporting capture coverage, rewrite coverage, exit-code preservation, visible-token estimates and model-specific API-equivalent savings.
+
 ## 0.9.4
 
 - Exposed one reversible `cg://output/<sha>` retrieval handle for non-empty successful output that is archived but not confidently classified; empty successful output remains quiet.

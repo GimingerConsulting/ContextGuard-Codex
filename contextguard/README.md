@@ -22,6 +22,8 @@ Within one Codex session, ContextGuard fingerprints exact read-only `cat` and `s
 
 ContextGuard also tracks command families and emits deduplicated, non-blocking guidance when repository listings or checks repeat, when more than two full-suite validations run, or when a session crosses a command milestone. Initial and final full validation remain allowed. Model selection always remains under user control.
 
+Codex commonly sends terminal work as a shell envelope such as `/bin/zsh -lc "..."`. The PreToolUse path now classifies the inner commands as well, so a noisy command inside that envelope is routed through the capture runner without changing its exit behavior or arguments.
+
 The output-efficiency engine suppresses routine narration, request restatement, source echo, full diffs and unrelated closing suggestions by default. Completed-task responses retain changed files, validation results and any real blocker, limitation or unverified assumption. Explicit requests for detailed explanations still take precedence.
 
 ## Privacy
@@ -123,7 +125,7 @@ contextguard uninstall-project
 - Task-conditioned evidence packets rank explicit files and relevant excerpts under a hard token budget before broad exploration.
 - Structured inspection reports schemas, counts, severities and redacted error signatures without exposing raw values.
 - Hooks provide optional automatic initialization and defense in depth.
-- The Python package performs project detection, indexing, documentation updates, command classification, session checkpoints, read fingerprinting, command-budget advice, output capture, large-file summaries and local metrics.
+- The Python package performs project detection, indexing, documentation updates, shell-aware command classification, session checkpoints, read fingerprinting, command-budget advice, output capture, large-file summaries and local metrics.
 - SQLite stores metadata, hashes, symbols, command executions, cache reuse and conservative savings estimates.
 
 ## Quality Guard
@@ -183,7 +185,7 @@ codex plugin marketplace upgrade contextguard
 codex plugin add contextguard@contextguard
 ```
 
-ContextGuard 0.9.4 is intended for real-world testing and early production use; token and API savings vary by workflow. Use the benchmark CLI below to reproduce the local RAW-vs-ContextGuard measurement with current Standard API-equivalent pricing; this is not a universal subscription-quota guarantee.
+ContextGuard 0.9.5 is intended for real-world testing and early production use; token and API savings vary by workflow. Use the benchmark CLI below to reproduce the local RAW-vs-ContextGuard measurement with current Standard API-equivalent pricing; this is not a universal subscription-quota guarantee.
 
 ## Initialize a project
 
@@ -220,7 +222,7 @@ contextguard benchmark --model gpt-5.6-luna
 contextguard benchmark --model gpt-6-astra
 ```
 
-`contextguard capture -- <command>` is the host-independent path for noisy tests, logs, builds, diffs and searches. It streams complete stdout and stderr to the local archive, gives Codex a compact evidence card, and returns a content-addressed handle. `contextguard get` first returns metadata only; add `--lines` or `--grep` to disclose only the exact missing evidence. `contextguard inspect` defaults to a compact structural outline of source files; use `--symbol` or an explicit line range when exact source is required. `contextguard benchmark` runs ten deterministic local scenarios and reports raw versus compacted bytes, estimated visible input tokens, result equality, and uncached/cached/mixed Standard API-equivalent input savings for the selected model. `contextguard session-cost` reads the matching local Codex JSONL trace and reports exact input, cached input, cache-write, output and reasoning token counts, the models used, per-model breakdowns and a standard API-cost equivalent. GPT-6 Astra and GPT-5.6 Sol, Terra and Luna use per-turn short/long-context prices verified from the official OpenAI pricing page. `contextguard lifetime-savings` remains a ContextGuard-ledger estimate.
+`contextguard capture -- <command>` is the host-independent path for noisy tests, logs, builds, diffs and searches. It streams complete stdout and stderr to the local archive, gives Codex a compact evidence card, and returns a content-addressed handle. `contextguard get` first returns metadata only; add `--lines` or `--grep` to disclose only the exact missing evidence. `contextguard inspect` defaults to a compact structural outline of source files; use `--symbol` or an explicit line range when exact source is required. `contextguard benchmark` runs ten deterministic local scenarios and reports raw versus compacted bytes, estimated visible input tokens, result equality, uncached/cached/mixed Standard API-equivalent input savings for the selected model, and a separate synthetic Codex-shell-envelope routing measurement. `contextguard session-cost` reads the matching local Codex JSONL trace and reports exact input, cached input, cache-write, output and reasoning token counts, the models used, per-model breakdowns and a standard API-cost equivalent. GPT-6 Astra and GPT-5.6 Sol, Terra and Luna use per-turn short/long-context prices verified from the official OpenAI pricing page. `contextguard lifetime-savings` remains a ContextGuard-ledger estimate.
 
 ## Known limitations
 

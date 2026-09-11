@@ -35,6 +35,20 @@ def test_python_module_validation_and_tee_pipeline_are_captured():
     assert classify_command("python -m pytest -q 2>&1 | tee /tmp/tests.log").action == "capture"
 
 
+def test_codex_shell_envelopes_are_classified_by_their_inner_commands():
+    commands = [
+        "/bin/zsh -lc 'python3 -m pytest -q'",
+        "/bin/bash -lc \"sed -n '1,260p' artifacts/CI_FAILURE.log\"",
+        "/bin/sh -c 'pwd; find . -type f; git diff'",
+    ]
+    for command in commands:
+        assert classify_command(command).action == "capture", command
+
+
+def test_small_shell_envelopes_remain_passthrough():
+    assert classify_command("/bin/zsh -lc 'pwd && git status --short'").action == "allow"
+
+
 def test_common_agent_command_families_are_captured():
     commands = [
         "cargo test --workspace",

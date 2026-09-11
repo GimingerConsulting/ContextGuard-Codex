@@ -74,6 +74,23 @@ def test_python_module_pytest_pipeline_is_rewritten(tmp_path: Path):
     assert "python3 -m pytest" in command
 
 
+def test_codex_shell_envelope_is_rewritten_before_output_reaches_host(tmp_path: Path):
+    result = run_hook(
+        "pre_tool_use.py",
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "/bin/zsh -lc 'python3 -m pytest -q && git diff --check'"},
+        },
+        tmp_path,
+    )
+
+    command = result["hookSpecificOutput"]["updatedInput"]["command"]
+    assert "/scripts/contextguard" in command
+    assert " capture --" in command
+    assert "python3 -m pytest -q" in command
+    assert "git diff --check" in command
+
+
 def test_large_sed_log_inspection_is_rewritten(tmp_path: Path):
     result = run_hook(
         "pre_tool_use.py",

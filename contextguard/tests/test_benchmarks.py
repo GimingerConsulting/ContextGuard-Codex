@@ -39,3 +39,8 @@ def test_benchmark_cli_emits_aggregate_pricing_summary():
     assert payload["pricing"]["rates_per_million_usd"]["input"] == 10.0
     assert payload["pricing"]["rates_per_million_usd_by_context"]["long"]["output"] == 75.0
     assert payload["pricing"]["pricing_source"].startswith("https://developers.openai.com/")
+    envelope = payload["shell_envelope_routing"]
+    assert envelope["capture_coverage_percent"] == 100.0
+    assert envelope["rewrite_coverage_percent"] == 100.0
+    assert envelope["inner_command_preservation"] is True
+    assert envelope["same_exit_codes"] is True
