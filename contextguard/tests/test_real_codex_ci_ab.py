@@ -44,6 +44,7 @@ def test_fixture_looks_like_normal_ci_investigation(tmp_path: Path):
 
 
 def test_ci_benchmark_model_is_configurable(tmp_path: Path):
-    command = build_codex_command(tmp_path, optimized=False, model="gpt-5.4-mini")
+    command = build_codex_command(tmp_path, optimized=False, model="gpt-5.4-mini", reasoning_effort="low")
 
     assert command[command.index("--model") + 1] == "gpt-5.4-mini"
+    assert 'model_reasoning_effort="low"' in command
