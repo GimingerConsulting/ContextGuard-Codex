@@ -3,3 +3,8 @@
 .contextguard/sessions/
 .contextguard/reports/
 .contextguard/tmp/
+
+# Local work protocols and the private Codag research report.
+**/changy.md
+/docs/research/CODAG_FEASIBILITY_2026-09-11.md
+/docs/research/CODAG_EVIDENCE_2026-09-11.json
