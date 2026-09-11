@@ -22,7 +22,7 @@ Within one Codex session, ContextGuard fingerprints exact read-only `cat` and `s
 
 ContextGuard also tracks command families and emits deduplicated, non-blocking guidance when repository listings or checks repeat, when more than two full-suite validations run, or when a session crosses a command milestone. Initial and final full validation remain allowed. Model selection always remains under user control.
 
-Codex commonly sends terminal work as a shell envelope such as `/bin/zsh -lc "..."`. The PreToolUse path now classifies the inner commands as well, so a noisy command inside that envelope is routed through the capture runner without changing its exit behavior or arguments.
+Codex commonly sends terminal work as a shell envelope such as `/bin/zsh -lc "..."`. The PreToolUse path recognizes a simple noisy inner command and routes it through the capture runner without changing its exit behavior or arguments. Compound shell scripts are deliberately left untouched: hiding a mixed source inspection behind one summary can trigger expensive follow-up reads and cost more than the original output.
 
 The output-efficiency engine suppresses routine narration, request restatement, source echo, full diffs and unrelated closing suggestions by default. Completed-task responses retain changed files, validation results and any real blocker, limitation or unverified assumption. Explicit requests for detailed explanations still take precedence.
 
@@ -185,7 +185,7 @@ codex plugin marketplace upgrade contextguard
 codex plugin add contextguard@contextguard
 ```
 
-ContextGuard 0.9.5 is intended for real-world testing and early production use; token and API savings vary by workflow. Use the benchmark CLI below to reproduce the local RAW-vs-ContextGuard measurement with current Standard API-equivalent pricing; this is not a universal subscription-quota guarantee.
+ContextGuard 0.9.5 is intended for real-world testing and early production use; token and API savings vary by workflow. Automatic shell routing is cost-conservative and skips compound scripts when a summary could cause follow-up reads. Use the benchmark CLI below to reproduce the local RAW-vs-ContextGuard measurement with current Standard API-equivalent pricing; this is not a universal subscription-quota guarantee.
 
 ## Initialize a project
 

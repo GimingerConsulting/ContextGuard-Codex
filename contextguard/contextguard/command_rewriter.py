@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+import re
 import shlex
 from pathlib import Path
 
 from .budget_enforcer import _source_files_for_inspect
-from .command_classifier import classify_command
+from .command_classifier import _shell_script, _shell_tokens, classify_command
+
+
+_SHELL_SEPARATORS = {";", "&&", "||", "&"}
+_UNSAFE_SHELL_WORDS = {
+    "if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done",
+    "case", "esac", "function", "select",
+}
+_STRUCTURED_SUFFIXES = {".log", ".jsonl", ".json", ".csv", ".tsv", ".sql"}
+_VALIDATION_COMMANDS = {
+    "pytest", "ruff", "mypy", "npm", "pnpm", "yarn", "bun", "make", "cargo",
+    "docker", "podman", "kubectl", "terraform", "gradle", "mvn", "gh", "tsc",
+    "eslint", "vitest",
+}
 
 
 def rewrite_for_inspect(command: str, root: Path, runner: Path | None = None) -> str | None:
@@ -26,9 +40,109 @@ def rewrite_for_inspect(command: str, root: Path, runner: Path | None = None) ->
     return None
 
 
+def _contains_capture_runner(command: str) -> bool:
+    return bool(re.search(r"contextguard(?:['\"]|\s)+capture\b", command, re.IGNORECASE))
+
+
+def _shell_segments(command: str) -> tuple[list[str], list[tuple[list[str], str | None]]] | None:
+    try:
+        outer = shlex.split(command)
+    except ValueError:
+        return None
+    script = _shell_script(outer)
+    if script is None or not any(separator in script for separator in (";", "&&", "||", "&")):
+        return None
+    if any(marker in script for marker in ("<<", ">>", ">&", "<&")):
+        return None
+    try:
+        tokens = _shell_tokens(script)
+    except ValueError:
+        return None
+    if not tokens or any(token in _UNSAFE_SHELL_WORDS or token in {"|", "|&"} for token in tokens):
+        return None
+    entries: list[tuple[list[str], str | None]] = []
+    segment: list[str] = []
+    for token in tokens:
+        if token in _SHELL_SEPARATORS:
+            if not segment:
+                return None
+            entries.append((segment, token))
+            segment = []
+        else:
+            segment.append(token)
+    if not segment:
+        return None
+    entries.append((segment, None))
+    return outer, entries
+
+
+def _segment_targets_noisy_data(parts: list[str]) -> bool:
+    for value in parts[1:]:
+        if value.startswith("-") or any(char in value for char in "*?[]"):
+            continue
+        lowered = value.lower().strip("'\"")
+        if lowered in {".", "./", ".."}:
+            return True
+        if Path(lowered).suffix in _STRUCTURED_SUFFIXES:
+            return True
+        if any(marker in lowered for marker in ("/data/", "/artifacts/", "/logs/", "production.log", "failure.log")):
+            return True
+    return False
+
+
+def _segment_is_high_yield(parts: list[str]) -> bool:
+    if not parts:
+        return False
+    first = Path(parts[0]).name
+    if first in _VALIDATION_COMMANDS:
+        return True
+    if first == "python3" and len(parts) >= 3 and parts[1:3] == ["-m", "pytest"]:
+        return True
+    if first == "go" and len(parts) > 1 and parts[1] in {"test", "build", "vet"}:
+        return True
+    if first == "find" or parts[:2] in (["git", "diff"], ["git", "log"]):
+        return True
+    if first in {"cat", "sed", "head", "tail", "awk", "jq", "rg", "grep", "curl", "wget"}:
+        return _segment_targets_noisy_data(parts)
+    return False
+
+
+def _rewrite_compound_shell(command: str, runner: Path) -> str | None:
+    parsed = _shell_segments(command)
+    if parsed is None:
+        return None
+    outer, entries = parsed
+    changed = False
+    rendered: list[str] = []
+    for parts, separator in entries:
+        if _segment_is_high_yield(parts):
+            inner = shlex.join(parts)
+            captured = " ".join(
+                [shlex.quote(runner.as_posix()), "capture", "--", "sh", "-c", shlex.quote(inner)]
+            )
+            rendered.append(captured)
+            changed = True
+        else:
+            rendered.append(shlex.join(parts))
+        if separator:
+            rendered.append(separator)
+    if not changed:
+        return None
+    return shlex.join([outer[0], outer[1], " ".join(rendered)])
+
+
 def rewrite_for_capture(command: str, runner: Path | None = None) -> str | None:
+    # A model may already have followed the managed guidance. Wrapping that
+    # command again creates nested capture summaries and extra follow-up
+    # turns, which can cost more than the original output.
+    if _contains_capture_runner(command):
+        return None
+    executable = runner or Path("contextguard")
+    compound = _rewrite_compound_shell(command, executable)
+    if compound is not None:
+        return compound
     decision = classify_command(command)
     if decision.action != "capture":
         return None
-    executable = runner.as_posix() if runner is not None else "contextguard"
-    return " ".join([shlex.quote(executable), "capture", "--", "sh", "-c", shlex.quote(command)])
+    executable_text = executable.as_posix()
+    return " ".join([shlex.quote(executable_text), "capture", "--", "sh", "-c", shlex.quote(command)])

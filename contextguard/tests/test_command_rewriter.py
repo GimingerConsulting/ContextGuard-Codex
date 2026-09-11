@@ -26,5 +26,23 @@ def test_rewrite_codex_shell_envelope_to_capture_without_changing_inner_command(
     rewritten = rewrite_for_capture(command, Path("/plugin/scripts/contextguard"))
 
     assert rewritten is not None
+    assert rewritten.startswith("/bin/zsh -lc")
+    assert "/plugin/scripts/contextguard capture --" in rewritten
+    assert "python3 -m pytest -q" in rewritten
+    assert "git diff --check" in rewritten
+
+
+def test_rewrite_simple_codex_shell_envelope_to_capture(tmp_path: Path):
+    command = "/bin/zsh -lc 'python3 -m pytest -q'"
+
+    rewritten = rewrite_for_capture(command, Path("/plugin/scripts/contextguard"))
+
+    assert rewritten is not None
     assert rewritten.startswith("/plugin/scripts/contextguard capture --")
     assert shlex.quote(command) in rewritten
+
+
+def test_capture_rewriter_does_not_nest_an_existing_runner(tmp_path: Path):
+    command = "/bin/zsh -lc '.contextguard/bin/contextguard capture -- python3 -m pytest -q'"
+
+    assert rewrite_for_capture(command, Path("/plugin/scripts/contextguard")) is None

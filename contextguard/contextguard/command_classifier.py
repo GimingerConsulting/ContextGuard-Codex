@@ -22,16 +22,31 @@ def _shell_script(parts: list[str]) -> str | None:
     return parts[2]
 
 
-def _candidate_command_indexes(parts: list[str]) -> list[int]:
-    indexes = [0]
-    indexes.extend(index + 1 for index, token in enumerate(parts[:-1]) if token in _SHELL_CONTROL_TOKENS)
-    return sorted(set(index for index in indexes if index < len(parts)))
-
-
 def _shell_tokens(script: str) -> list[str]:
     lexer = shlex.shlex(script, posix=True, punctuation_chars=";&|")
     lexer.whitespace_split = True
     return list(lexer)
+
+
+def _simple_shell_command(parts: list[str]) -> list[str] | None:
+    """Return one inner command, but never flatten a shell script.
+
+    Rewriting a compound shell script to one capture call can hide exact
+    source reads behind a summary and make the model issue costly follow-up
+    reads. Automatic routing is therefore limited to a single command with
+    no shell control operators. Compound scripts remain untouched; the model
+    can still opt into the project runner for them when it has enough context.
+    """
+    script = _shell_script(parts)
+    if script is None:
+        return None
+    try:
+        tokens = _shell_tokens(script)
+    except ValueError:
+        return None
+    if not tokens or any(token in _SHELL_CONTROL_TOKENS for token in tokens):
+        return None
+    return tokens
 
 
 def _classify_parts(parts: list[str]) -> CommandDecision:
@@ -93,24 +108,25 @@ def classify_command(command: str, *, _allow_shell_unwrap: bool = True) -> Comma
         return CommandDecision("allow", "Empty command.")
 
     if _allow_shell_unwrap:
-        script = _shell_script(parts)
-        if script is not None:
-            try:
-                script_parts = _shell_tokens(script)
-            except ValueError:
-                script_parts = []
-            if script_parts:
-                for index in _candidate_command_indexes(script_parts):
-                    decision = classify_command(
-                        shlex.join(script_parts[index:]),
-                        _allow_shell_unwrap=False,
-                    )
-                    if decision.action == "capture":
-                        return CommandDecision(
-                            "capture",
-                            f"Shell envelope contains capturable output: {decision.reason}",
-                        )
-                    if decision.action == "guide":
-                        return decision
+        shell_script = _shell_script(parts)
+        script_parts = _simple_shell_command(parts)
+        if script_parts:
+            decision = classify_command(
+                shlex.join(script_parts),
+                _allow_shell_unwrap=False,
+            )
+            if decision.action == "capture":
+                return CommandDecision(
+                    "capture",
+                    f"Simple shell envelope contains capturable output: {decision.reason}",
+                )
+            if decision.action == "guide":
+                return decision
+            return CommandDecision("allow", "Shell envelope appears small or already scoped.")
+        if shell_script is not None:
+            return CommandDecision(
+                "allow",
+                "Compound shell envelope is left unchanged to preserve exact command output.",
+            )
 
     return _classify_parts(parts)

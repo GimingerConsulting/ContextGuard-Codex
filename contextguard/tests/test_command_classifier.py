@@ -39,10 +39,14 @@ def test_codex_shell_envelopes_are_classified_by_their_inner_commands():
     commands = [
         "/bin/zsh -lc 'python3 -m pytest -q'",
         "/bin/bash -lc \"sed -n '1,260p' artifacts/CI_FAILURE.log\"",
-        "/bin/sh -c 'pwd; find . -type f; git diff'",
     ]
     for command in commands:
         assert classify_command(command).action == "capture", command
+
+
+def test_compound_codex_shell_envelopes_remain_unmodified():
+    command = "/bin/sh -c 'pwd; find . -type f; git diff'"
+    assert classify_command(command).action == "allow"
 
 
 def test_small_shell_envelopes_remain_passthrough():

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added cost-safe shell-envelope routing: only simple, single-command envelopes are eligible for automatic capture.
+- Left compound shell scripts unchanged when a summary could hide exact source evidence and cause costly follow-up reads.
+- Prevented automatic rewriting from nesting an already explicit `contextguard capture` invocation.
+
 ## 0.9.5
 
 - Made automatic command routing shell-envelope aware for Codex's common `/bin/zsh -lc`, `bash -lc` and `sh -c` tool commands. Noisy inner tests, logs, searches and diffs now reach the capture boundary before stdout enters the host.

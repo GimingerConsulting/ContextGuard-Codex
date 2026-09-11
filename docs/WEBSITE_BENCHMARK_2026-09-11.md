@@ -6,6 +6,21 @@ The fresh live comparison is workload-dependent. On the strict accepted-gate agg
 
 The CI/timezone workload improved. The support/concurrency workload regressed. The website therefore reports both results instead of presenting one blanket savings claim.
 
+## Post-fix cost-safe routing pilot
+
+The shell-routing fix was then tested in one additional support/concurrency pair with trusted hooks enabled. Both arms completed the fixture validation successfully. The optimized arm reduced the API cost proxy by **46.68%**, total tokens by **10.05%**, and visible tool output by **66.25%**. It used more individual commands, so the strict release gate did not accept this single stochastic pair; this is directional validation of the fix, not a replacement for the multi-pair aggregate above.
+
+| Measure | RAW | Cost-safe ContextGuard | Change |
+| --- | ---: | ---: | ---: |
+| Total tokens | 299,039 | 268,973 | -10.05% |
+| Input tokens | 293,484 | 264,184 | -9.98% |
+| API cost proxy | $0.030625 | $0.016328 | **-46.68%** |
+| Tool-output bytes | 29,825 | 10,065 | -66.25% |
+| Command executions | 6 | 11 | +83.33% |
+| Elapsed time | 121.405s | 115.298s | -5.03% |
+
+The fix only automatically captures high-yield noisy segments, leaves exact source reads visible, and refuses to nest an existing `contextguard capture` invocation. Compound shell pipelines that cannot be safely split remain unchanged. The one-pair result is subject to model and order variance and should not be read as a universal savings percentage.
+
 ## Scope and quality
 
 - Model: gpt-5.6-luna
