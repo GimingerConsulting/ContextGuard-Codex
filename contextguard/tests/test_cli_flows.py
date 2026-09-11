@@ -167,16 +167,16 @@ def test_orient_keeps_exact_working_set_evidence_recoverable(tmp_path: Path):
     assert bounded.returncode == 0
 
 
-def test_successful_capture_does_not_invite_archive_roundtrip(tmp_path: Path):
+def test_successful_unclassified_capture_exposes_exact_archive_handle(tmp_path: Path):
     run_cli(["init"], tmp_path)
     captured = run_cli(
         ["capture", "--", sys.executable, "-c", "print('needle line')\nprint('other line')\nprint('x' * 5000)"],
         tmp_path,
     )
     assert captured.returncode == 0
-    assert re.search(r"cg://output/[0-9a-f]{12}", captured.stdout) is None
+    assert re.search(r"cg://output/[0-9a-f]{12}", captured.stdout)
     assert "archive:" not in captured.stdout
-    assert "no further inspection needed" in captured.stdout
+    assert "exact output available" in captured.stdout
 
 
 def test_project_runner_capture_compacts_before_output_reaches_host(tmp_path: Path):

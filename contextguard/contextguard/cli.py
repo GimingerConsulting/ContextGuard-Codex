@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shlex
 import sys
@@ -367,6 +368,23 @@ def snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def benchmark(args: argparse.Namespace) -> int:
+    benchmark_path = Path(__file__).resolve().parents[1] / "benchmarks" / "run_benchmarks.py"
+    if not benchmark_path.is_file():
+        print(json.dumps({"ok": False, "error": f"benchmark harness not found: {benchmark_path}"}, sort_keys=True))
+        return 2
+    spec = importlib.util.spec_from_file_location("contextguard_local_benchmarks", benchmark_path)
+    if spec is None or spec.loader is None:
+        print(json.dumps({"ok": False, "error": "could not load benchmark harness"}, sort_keys=True))
+        return 2
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    argv = ["--summary", "--model", args.model]
+    if args.output:
+        argv.extend(["--output", str(args.output)])
+    return int(module.main(argv))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="contextguard")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -452,6 +470,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("file")
     p.add_argument("--path")
     p.set_defaults(func=snapshot)
+    p = sub.add_parser("benchmark")
+    p.add_argument("--model", default="gpt-5.6-luna")
+    p.add_argument("--output", type=Path)
+    p.set_defaults(func=benchmark)
     p = sub.add_parser("uninstall-project")
     p.add_argument("--path")
     p.add_argument("--yes", action="store_true")

@@ -98,6 +98,6 @@ def test_sol_credit_cost_uses_official_cached_input_discount():
 
 
 def test_api_cost_uses_official_gpt_56_sol_standard_rates():
-    run = {"input_tokens": 1_000_000, "cached_input_tokens": 900_000, "output_tokens": 10_000}
+    run = {"input_tokens": 100_000, "cached_input_tokens": 90_000, "output_tokens": 10_000}
 
-    assert api_cost_usd(run) == 1.25
+    assert api_cost_usd(run) == 0.276

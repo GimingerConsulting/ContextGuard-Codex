@@ -6,12 +6,29 @@ import re
 from collections import Counter
 
 
+_SEMANTIC_NUMBER_RE = re.compile(
+    r"\b(?:status(?:_code)?|http(?:_status|_code)?|(?:error_)?code|errno|"
+    r"exit(?:_code|_status)?|version)\s*[=:]?\s*(\d{1,6})\b",
+    re.I,
+)
+
+
 def _clip(line: str, limit: int = 500) -> str:
     return line if len(line) <= limit else line[:limit] + " ... [truncated]"
 
 
 def _signature(line: str) -> str:
-    return re.sub(r"\b\d+(?:\.\d+)?\b", "N", line.strip().lower())[:300]
+    preserved: list[str] = []
+
+    def mark_semantic_number(match: re.Match[str]) -> str:
+        preserved.append(match.group(0).lower())
+        return chr(0xE000 + len(preserved) - 1)
+
+    normalized = _SEMANTIC_NUMBER_RE.sub(mark_semantic_number, line.strip().lower())
+    normalized = re.sub(r"\b\d+(?:\.\d+)?\b", "N", normalized)
+    for index, value in enumerate(preserved):
+        normalized = normalized.replace(chr(0xE000 + index), value)
+    return normalized[:300]
 
 
 def _unique_matching(lines: list[str], pattern: re.Pattern[str], limit: int = 20) -> list[str]:

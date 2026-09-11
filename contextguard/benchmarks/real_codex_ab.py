@@ -17,6 +17,12 @@ from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = PLUGIN_ROOT.parent
+if str(PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT))
+from contextguard.codex_usage import MODEL_PRICES, PRICING_LAST_VERIFIED, PRICING_SOURCE, calculate_turn_cost, canonical_model
+
+DEFAULT_MODEL = os.environ.get("CONTEXTGUARD_BENCHMARK_MODEL", "gpt-5.5")
+DEFAULT_REASONING_EFFORT = os.environ.get("CONTEXTGUARD_BENCHMARK_REASONING_EFFORT", "medium")
 PROMPT = """Implement the settlement reconciliation feature described in SPEC.md.
 
 Requirements:
@@ -223,14 +229,17 @@ def parse_codex_jsonl(text: str) -> dict:
             final_response = item.get("text") or final_response
     input_tokens = int(usage.get("input_tokens", 0))
     cached_tokens = int(usage.get("cached_input_tokens", 0))
+    cache_write_tokens = int(usage.get("cache_write_input_tokens", 0))
     return {
         "usage_event_seen": turn_completed_events > 0,
         "turn_completed_events": turn_completed_events,
         "input_tokens": input_tokens,
         "cached_input_tokens": cached_tokens,
-        "uncached_input_tokens": max(0, input_tokens - cached_tokens),
+        "cache_write_input_tokens": cache_write_tokens,
+        "uncached_input_tokens": max(0, input_tokens - cached_tokens - cache_write_tokens),
         "output_tokens": int(usage.get("output_tokens", 0)),
         "reasoning_output_tokens": int(usage.get("reasoning_output_tokens", 0)),
+        "total_tokens": int(usage.get("total_tokens", input_tokens + int(usage.get("output_tokens", 0)))),
         "tool_output_bytes": tool_output_bytes,
         "command_executions": command_executions,
         "file_changes": file_changes,
@@ -240,11 +249,19 @@ def parse_codex_jsonl(text: str) -> dict:
     }
 
 
-def build_codex_command(project: Path, *, optimized: bool) -> list[str]:
+def build_codex_command(
+    project: Path,
+    *,
+    optimized: bool,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> list[str]:
     command = shlex.split(os.environ.get("CONTEXTGUARD_CODEX_COMMAND", "codex"))
+    selected_model = model or DEFAULT_MODEL
+    selected_effort = reasoning_effort or DEFAULT_REASONING_EFFORT
     command.extend([
         "exec", "--json", "--ephemeral", "--ignore-rules",
-        "--model", "gpt-5.5", "-c", 'model_reasoning_effort="medium"',
+        "--model", selected_model, "-c", f'model_reasoning_effort="{selected_effort}"',
         "--sandbox", "danger-full-access", "-c", 'approval_policy="never"', "-c", "features.plugins=false",
     ])
     command.extend(["-C", str(project), PROMPT])
@@ -276,7 +293,16 @@ def prepare_optimized_project(project: Path) -> None:
     )
 
 
-def run_trial(project: Path, codex_home: Path, artifact_dir: Path, *, optimized: bool, timeout: int) -> dict:
+def run_trial(
+    project: Path,
+    codex_home: Path,
+    artifact_dir: Path,
+    *,
+    optimized: bool,
+    timeout: int,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> dict:
     prepare_codex_home(codex_home, project, optimized=optimized)
     if optimized:
         prepare_optimized_project(project)
@@ -287,7 +313,12 @@ def run_trial(project: Path, codex_home: Path, artifact_dir: Path, *, optimized:
     timed_out = False
     try:
         proc = subprocess.run(
-            build_codex_command(project, optimized=optimized),
+            build_codex_command(
+                project,
+                optimized=optimized,
+                model=model,
+                reasoning_effort=reasoning_effort,
+            ),
             cwd=project,
             env=environment,
             text=True,
@@ -306,6 +337,18 @@ def run_trial(project: Path, codex_home: Path, artifact_dir: Path, *, optimized:
         exit_code = 124
     elapsed = time.perf_counter() - started
     parsed = parse_codex_jsonl(stdout)
+    selected_model = canonical_model(model or DEFAULT_MODEL)
+    cost, context_class = calculate_turn_cost(
+        selected_model,
+        {
+            "input_tokens": parsed["input_tokens"],
+            "cached_input_tokens": parsed["cached_input_tokens"],
+            "cache_write_input_tokens": parsed["cache_write_input_tokens"],
+            "output_tokens": parsed["output_tokens"],
+        },
+    )
+    parsed["api_cost_usd"] = round(cost, 6) if cost is not None else None
+    parsed["api_cost_context_class"] = context_class
     parsed["exact_baseline_command"] = any(
         command.endswith("'python3 -m pytest -q'") or command == "python3 -m pytest -q"
         for command in parsed["commands"]
@@ -344,14 +387,40 @@ def percent_change(raw: int | float, optimized: int | float) -> float | None:
     return round(((optimized - raw) / raw) * 100, 2)
 
 
-def execute_real_ab(output_dir: Path, *, timeout: int = 1200) -> dict:
+def execute_real_ab(
+    output_dir: Path,
+    *,
+    timeout: int = 1200,
+    model: str = DEFAULT_MODEL,
+    reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+) -> dict:
+    selected_model = canonical_model(model)
+    if selected_model not in MODEL_PRICES:
+        supported = ", ".join(sorted(MODEL_PRICES))
+        raise ValueError(f"unsupported benchmark model {model!r}; choose one of: {supported}")
     output_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="contextguard-real-codex-ab-") as tmp:
         root = Path(tmp)
         raw_project = create_fixture(root / "raw-project")
         optimized_project = create_fixture(root / "optimized-project")
-        raw = run_trial(raw_project, root / "raw-home", output_dir / "raw", optimized=False, timeout=timeout)
-        optimized = run_trial(optimized_project, root / "optimized-home", output_dir / "contextguard", optimized=True, timeout=timeout)
+        raw = run_trial(
+            raw_project,
+            root / "raw-home",
+            output_dir / "raw",
+            optimized=False,
+            timeout=timeout,
+            model=selected_model,
+            reasoning_effort=reasoning_effort,
+        )
+        optimized = run_trial(
+            optimized_project,
+            root / "optimized-home",
+            output_dir / "contextguard",
+            optimized=True,
+            timeout=timeout,
+            model=selected_model,
+            reasoning_effort=reasoning_effort,
+        )
         equivalent = (
             raw["validation"]["exit_code"] == 0
             and optimized["validation"]["exit_code"] == 0
@@ -375,8 +444,13 @@ def execute_real_ab(output_dir: Path, *, timeout: int = 1200) -> dict:
             }
         result = {
             "benchmark": "real-codex-hard-settlement-ab",
-            "model": "gpt-5.5",
-            "reasoning_effort": "medium",
+            "model": selected_model,
+            "reasoning_effort": reasoning_effort,
+            "api_usd_rates_per_million": MODEL_PRICES[selected_model]["short"],
+            "api_usd_rates_per_million_by_context": MODEL_PRICES[selected_model],
+            "pricing_basis": "OpenAI Standard API, per-turn short/long context pricing",
+            "pricing_source": PRICING_SOURCE,
+            "pricing_last_verified": PRICING_LAST_VERIFIED,
             "codex_cli": subprocess.run(
                 [*shlex.split(os.environ.get("CONTEXTGUARD_CODEX_COMMAND", "codex")), "--version"],
                 text=True,
@@ -415,6 +489,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=PLUGIN_ROOT / "benchmarks" / "results" / "real-codex-hard-ab-2026-06-10")
     parser.add_argument("--timeout", type=int, default=1200)
+    parser.add_argument("--model", default=DEFAULT_MODEL, choices=sorted(MODEL_PRICES))
+    parser.add_argument(
+        "--reasoning-effort",
+        default=DEFAULT_REASONING_EFFORT,
+        choices=("none", "low", "medium", "high", "xhigh", "max"),
+    )
     args = parser.parse_args(argv)
     if args.self_check:
         with tempfile.TemporaryDirectory(prefix="contextguard-real-ab-") as tmp:
@@ -425,7 +505,12 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"before": before["exit_code"], "after": after["exit_code"], "tests": after["passed_tests"]}))
             return int(after["exit_code"] != 0)
     if args.run:
-        result = execute_real_ab(args.output_dir, timeout=args.timeout)
+        result = execute_real_ab(
+            args.output_dir,
+            timeout=args.timeout,
+            model=args.model,
+            reasoning_effort=args.reasoning_effort,
+        )
         print(json.dumps(result["comparison"], indent=2, sort_keys=True))
         return int(not result["equivalent_result"])
     parser.error("choose --self-check or --run")

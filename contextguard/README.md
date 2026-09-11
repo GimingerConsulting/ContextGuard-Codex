@@ -166,6 +166,7 @@ The first command explains project-local files. The second removes `.contextguar
 ## Disclaimer
 
 Local report token values are estimates. Real A/B result files use exact Codex `turn.completed.usage` values and remain scoped to their controlled samples.
+The benchmark CLI reports current Standard API-equivalent input savings for a selected model; it does not report Codex subscription billing.
 ## Install and update
 
 Install the current plugin from GitHub:
@@ -182,7 +183,7 @@ codex plugin marketplace upgrade contextguard
 codex plugin add contextguard@contextguard
 ```
 
-ContextGuard 0.9.3 is intended for real-world testing and early production use; token and API savings vary by workflow. Its latest one-pair GPT-5.6 Sol screen saved 57.72% total tokens and 42.00% standard API cost with equal hidden-test quality; this is not a universal subscription-quota guarantee.
+ContextGuard 0.9.4 is intended for real-world testing and early production use; token and API savings vary by workflow. Use the benchmark CLI below to reproduce the local RAW-vs-ContextGuard measurement with current Standard API-equivalent pricing; this is not a universal subscription-quota guarantee.
 
 ## Initialize a project
 
@@ -215,9 +216,11 @@ contextguard orient --query "fix the issue in SUPPORT_TICKET.md"
 contextguard large-file data.json --contains error --limit 10
 contextguard session-cost
 contextguard lifetime-savings
+contextguard benchmark --model gpt-5.6-luna
+contextguard benchmark --model gpt-6-astra
 ```
 
-`contextguard capture -- <command>` is the host-independent path for noisy tests, logs, builds, diffs and searches. It streams complete stdout and stderr to the local archive, gives Codex a compact evidence card, and returns a content-addressed handle. `contextguard get` first returns metadata only; add `--lines` or `--grep` to disclose only the exact missing evidence. `contextguard inspect` defaults to a compact structural outline of source files; use `--symbol` or an explicit line range when exact source is required. `contextguard session-cost` reads the matching local Codex JSONL trace and reports exact input, cached input, cache-write, output and reasoning token counts, the models used, per-model breakdowns and a standard API-cost equivalent. GPT-5.6 Sol, Terra and Luna use per-turn short/long-context prices. `contextguard lifetime-savings` remains a ContextGuard-ledger estimate.
+`contextguard capture -- <command>` is the host-independent path for noisy tests, logs, builds, diffs and searches. It streams complete stdout and stderr to the local archive, gives Codex a compact evidence card, and returns a content-addressed handle. `contextguard get` first returns metadata only; add `--lines` or `--grep` to disclose only the exact missing evidence. `contextguard inspect` defaults to a compact structural outline of source files; use `--symbol` or an explicit line range when exact source is required. `contextguard benchmark` runs ten deterministic local scenarios and reports raw versus compacted bytes, estimated visible input tokens, result equality, and uncached/cached/mixed Standard API-equivalent input savings for the selected model. `contextguard session-cost` reads the matching local Codex JSONL trace and reports exact input, cached input, cache-write, output and reasoning token counts, the models used, per-model breakdowns and a standard API-cost equivalent. GPT-6 Astra and GPT-5.6 Sol, Terra and Luna use per-turn short/long-context prices verified from the official OpenAI pricing page. `contextguard lifetime-savings` remains a ContextGuard-ledger estimate.
 
 ## Known limitations
 

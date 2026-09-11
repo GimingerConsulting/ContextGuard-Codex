@@ -122,6 +122,18 @@ def test_repeated_logs_collapse_by_normalized_signature():
     assert compact["signal_lines"][0].startswith("repeated x40:")
 
 
+def test_repeated_logs_preserve_distinct_status_codes():
+    output = "\n".join(
+        [f"ERROR request={index} status=401" for index in range(12)]
+        + [f"ERROR request={index} status=403" for index in range(12, 24)]
+    )
+
+    compact = compact_output(output, command="kubectl logs worker")
+
+    assert any("status=401" in line for line in compact["signal_lines"])
+    assert any("status=403" in line for line in compact["signal_lines"])
+
+
 def test_quoted_shell_status_is_search_signal_not_repetitive_log():
     output = "\n".join(
         [f" M benchmarks/results/output-ab-2026-06-{day:02d}.json" for day in range(1, 25)]

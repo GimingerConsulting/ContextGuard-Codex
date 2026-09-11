@@ -354,11 +354,19 @@ def validate_fixture(root: Path) -> dict:
     }
 
 
-def build_codex_command(project: Path, *, optimized: bool) -> list[str]:
+def build_codex_command(
+    project: Path,
+    *,
+    optimized: bool,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> list[str]:
     command = shlex.split(os.environ.get("CONTEXTGUARD_CODEX_COMMAND", "codex"))
+    selected_model = model or "gpt-5.5"
+    selected_effort = reasoning_effort or "medium"
     command.extend([
         "exec", "--json", "--ephemeral", "--ignore-rules",
-        "--model", "gpt-5.5", "-c", 'model_reasoning_effort="medium"',
+        "--model", selected_model, "-c", f'model_reasoning_effort="{selected_effort}"',
         "--sandbox", "danger-full-access", "-c", 'approval_policy="never"', "-c", "features.plugins=false",
         "-C", str(project), PROMPT,
     ])
@@ -386,7 +394,16 @@ def prepare_optimized_project(project: Path) -> None:
     )
 
 
-def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool, timeout: int) -> dict:
+def run_trial(
+    project: Path,
+    home: Path,
+    artifact_dir: Path,
+    *,
+    optimized: bool,
+    timeout: int,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> dict:
     prepare_codex_home(home, project)
     if optimized:
         prepare_optimized_project(project)
@@ -397,7 +414,12 @@ def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool,
     timed_out = False
     try:
         proc = subprocess.run(
-            build_codex_command(project, optimized=optimized), cwd=project, env=environment,
+            build_codex_command(
+                project,
+                optimized=optimized,
+                model=model,
+                reasoning_effort=reasoning_effort,
+            ), cwd=project, env=environment,
             text=True, capture_output=True, timeout=timeout,
         )
         stdout, stderr, exit_code = proc.stdout, proc.stderr, proc.returncode

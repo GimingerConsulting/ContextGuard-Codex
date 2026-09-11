@@ -148,6 +148,21 @@ def _is_noisy_medium_output(summary: dict) -> bool:
     return int(summary.get("line_count", 0)) > 50
 
 
+def _has_retrievable_archive(summary: dict) -> bool:
+    """Return true only when the summary points at a local archive we can use."""
+    if int(summary.get("raw_bytes", 0)) <= 0:
+        return False
+    try:
+        if not Path(str(summary.get("summary_path") or "")).is_file():
+            return False
+        return any(
+            Path(str(summary.get(f"{key}_path") or "")).is_file()
+            for key in ("stdout", "stderr")
+        )
+    except (OSError, ValueError):
+        return False
+
+
 def _render_summary(argv: list[str], summary: dict) -> str:
     archive = summary.get("display_summary_path", summary["summary_path"])
     handle = f"cg://output/{summary['content_fingerprint'][:12]}"
@@ -178,6 +193,11 @@ def _render_summary(argv: list[str], summary: dict) -> str:
         and not summary.get("warnings")
         and not summary.get("signal_lines")
     ):
+        if _has_retrievable_archive(summary):
+            return (
+                f"ContextGuard OK | {summary['raw_bytes']}B processed | "
+                f"exact output available via {handle}; retrieve only if needed\n"
+            )
         return f"ContextGuard OK | {summary['raw_bytes']}B processed | no further inspection needed\n"
     lines = [
         "ContextGuard capture summary",

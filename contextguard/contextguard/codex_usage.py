@@ -8,20 +8,27 @@ from typing import Iterable
 
 LONG_CONTEXT_THRESHOLD = 272_000
 PRICING_SOURCE = "https://developers.openai.com/api/docs/pricing"
+PRICING_LAST_VERIFIED = "2026-09-11"
 
-# Standard API prices in USD per one million tokens, published 2026-07-22.
+# OpenAI Standard API prices in USD per one million tokens, verified against the
+# official pricing page on 2026-09-11.  The long-context rates are the rates
+# shown for prompts above 272K input tokens; they are not a sum across turns.
 MODEL_PRICES = {
+    "gpt-6-astra": {
+        "short": {"input": 10.0, "cached_input": 1.0, "cache_write": 12.5, "output": 50.0},
+        "long": {"input": 20.0, "cached_input": 2.0, "cache_write": 25.0, "output": 75.0},
+    },
     "gpt-5.6-sol": {
-        "short": {"input": 5.0, "cached_input": 0.5, "cache_write": 6.25, "output": 30.0},
-        "long": {"input": 10.0, "cached_input": 1.0, "cache_write": 12.5, "output": 45.0},
+        "short": {"input": 4.0, "cached_input": 0.4, "cache_write": 5.0, "output": 20.0},
+        "long": {"input": 8.0, "cached_input": 0.8, "cache_write": 10.0, "output": 30.0},
     },
     "gpt-5.6-terra": {
-        "short": {"input": 2.5, "cached_input": 0.25, "cache_write": 3.125, "output": 15.0},
-        "long": {"input": 5.0, "cached_input": 0.5, "cache_write": 6.25, "output": 22.5},
+        "short": {"input": 2.0, "cached_input": 0.2, "cache_write": 2.5, "output": 12.0},
+        "long": {"input": 4.0, "cached_input": 0.4, "cache_write": 5.0, "output": 18.0},
     },
     "gpt-5.6-luna": {
-        "short": {"input": 1.0, "cached_input": 0.1, "cache_write": 1.25, "output": 6.0},
-        "long": {"input": 2.0, "cached_input": 0.2, "cache_write": 2.5, "output": 9.0},
+        "short": {"input": 0.2, "cached_input": 0.02, "cache_write": 0.25, "output": 1.2},
+        "long": {"input": 0.4, "cached_input": 0.04, "cache_write": 0.5, "output": 1.8},
     },
     # Kept for mixed or older traces; new estimates default to GPT-5.6 Sol.
     "gpt-5.5": {
@@ -45,7 +52,7 @@ TOKEN_FIELDS = (
 
 
 def canonical_model(model: str | None) -> str:
-    value = (model or "unknown").lower()
+    value = (model or "unknown").strip().lower()
     for known in MODEL_PRICES:
         if value == known or value.startswith(known + "-"):
             return known
@@ -174,6 +181,7 @@ def parse_codex_session(path: Path) -> dict[str, object]:
         "api_cost_complete": cost_complete,
         "pricing_basis": "OpenAI standard API, per-turn short/long context",
         "pricing_source": PRICING_SOURCE,
+        "pricing_last_verified": PRICING_LAST_VERIFIED,
         "malformed_lines": malformed_lines,
         "note": "API-equivalent local trace cost; Codex subscription billing and service-tier uplifts are not exposed.",
     }

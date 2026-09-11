@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import argparse
 import json
 import os
 import subprocess
@@ -13,7 +14,22 @@ from pathlib import Path
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PLUGIN_ROOT))
 
+from contextguard.codex_usage import MODEL_PRICES, PRICING_LAST_VERIFIED, PRICING_SOURCE, canonical_model
 from contextguard.output_policy import inspect_final_response
+
+
+FIXTURE_NAMES = [
+    "trivial-one-file-change",
+    "medium-feature",
+    "complex-debugging",
+    "verbose-test-suite",
+    "large-json-analysis",
+    "repeated-log-errors",
+    "long-multi-turn-session",
+    "session-restart-unchanged",
+    "session-restart-partial-changes",
+    "large-existing-repository",
+]
 
 
 def env() -> dict[str, str]:
@@ -78,23 +94,11 @@ def repository_hash(root: Path) -> str:
     return digest.hexdigest()
 
 
-def main() -> int:
-    fixture_names = [
-        "trivial-one-file-change",
-        "medium-feature",
-        "complex-debugging",
-        "verbose-test-suite",
-        "large-json-analysis",
-        "repeated-log-errors",
-        "long-multi-turn-session",
-        "session-restart-unchanged",
-        "session-restart-partial-changes",
-        "large-existing-repository",
-    ]
+def run_suite() -> list[dict[str, object]]:
     with tempfile.TemporaryDirectory(prefix="contextguard-bench-") as tmp:
         tmp_path = Path(tmp)
         results = []
-        for name in fixture_names:
+        for name in FIXTURE_NAMES:
             raw_project, raw_command = create_fixture(tmp_path / "baseline", name)
             guard_project, guard_command = create_fixture(tmp_path / "optimized", name)
             raw_code, raw_bytes, raw_seconds = run(raw_command, raw_project)
@@ -124,7 +128,80 @@ def main() -> int:
                     "measurement": "bytes and duration measured; token reduction estimated at four bytes per token",
                 }
             )
-        print(json.dumps(results, indent=2))
+        return results
+
+
+def _input_cost_estimates(tokens_saved: int, model: str) -> dict[str, float]:
+    rates = MODEL_PRICES[model]["short"]
+    cached_share = 0.88
+    uncached_share = 1.0 - cached_share
+    return {
+        "all_uncached_input_usd": round(tokens_saved * rates["input"] / 1_000_000, 6),
+        "all_cached_input_usd": round(tokens_saved * rates["cached_input"] / 1_000_000, 6),
+        "default_88_percent_cached_input_usd": round(
+            tokens_saved
+            * (cached_share * rates["cached_input"] + uncached_share * rates["input"])
+            / 1_000_000,
+            6,
+        ),
+    }
+
+
+def build_summary(results: list[dict[str, object]], *, model: str) -> dict[str, object]:
+    selected_model = canonical_model(model)
+    if selected_model not in MODEL_PRICES:
+        supported = ", ".join(sorted(MODEL_PRICES))
+        raise ValueError(f"unsupported benchmark model {model!r}; choose one of: {supported}")
+    raw_bytes = sum(int(result["raw_bytes"]) for result in results)
+    contextguard_bytes = sum(int(result["contextguard_bytes"]) for result in results)
+    estimated_raw_tokens = raw_bytes // 4
+    estimated_contextguard_tokens = contextguard_bytes // 4
+    estimated_tokens_saved = max(0, estimated_raw_tokens - estimated_contextguard_tokens)
+    reduction_percent = round(
+        estimated_tokens_saved / estimated_raw_tokens * 100,
+        2,
+    ) if estimated_raw_tokens else 0.0
+    return {
+        "benchmark": "contextguard-local-fixtures-vs-raw",
+        "fixtures": len(results),
+        "raw_bytes": raw_bytes,
+        "contextguard_bytes": contextguard_bytes,
+        "estimated_raw_input_tokens": estimated_raw_tokens,
+        "estimated_contextguard_input_tokens": estimated_contextguard_tokens,
+        "estimated_input_tokens_saved": estimated_tokens_saved,
+        "estimated_input_reduction_percent": reduction_percent,
+        "same_result": all(bool(result["same_result"]) for result in results),
+        "all_output_quality_checks_passed": all(bool(result["output_quality"]) for result in results),
+        "pricing": {
+            "model": selected_model,
+            "rates_per_million_usd": MODEL_PRICES[selected_model]["short"],
+            "rates_per_million_usd_by_context": MODEL_PRICES[selected_model],
+            "pricing_basis": "OpenAI Standard API short-context text-token rates",
+            "pricing_source": PRICING_SOURCE,
+            "pricing_last_verified": PRICING_LAST_VERIFIED,
+            "estimated_input_savings_usd": _input_cost_estimates(estimated_tokens_saved, selected_model),
+        },
+        "measurement": (
+            "Raw and compacted subprocess bytes are measured locally; visible input tokens are estimated at four bytes per token. "
+            "USD values are API-equivalent input savings estimates, not Codex subscription billing."
+        ),
+        "results": results,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--summary", action="store_true", help="emit an aggregate report with pricing estimates")
+    parser.add_argument("--model", default="gpt-5.6-luna", choices=sorted(MODEL_PRICES))
+    parser.add_argument("--output", type=Path, help="write the emitted JSON report to this path")
+    args = parser.parse_args(argv)
+    results = run_suite()
+    data: object = build_summary(results, model=args.model) if args.summary else results
+    rendered = json.dumps(data, indent=2)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(rendered + "\n", encoding="utf-8")
+    print(rendered)
     return 0
 
 

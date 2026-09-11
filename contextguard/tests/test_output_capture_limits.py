@@ -92,6 +92,45 @@ def test_passing_test_summary_uses_one_line_codec():
     assert len(rendered.encode()) < 140
 
 
+def test_unclassified_success_exposes_one_retrieval_handle_when_archived(tmp_path: Path):
+    path = tmp_path.joinpath("result.json")
+    path.with_name("stdout.txt").write_text("result\n", encoding="utf-8")
+    path.write_text("{}", encoding="utf-8")
+    rendered = _render_summary([], {
+        "summary_path": str(path),
+        "stdout_path": str(path.with_name("stdout.txt")),
+        "exit_code": 0,
+        "raw_bytes": 5000,
+        "content_fingerprint": "d" * 64,
+        "errors": [],
+        "warnings": [],
+        "signal_lines": [],
+        "evidence": {"outcome": "unknown"},
+    })
+    assert rendered.count("cg://output/dddddddddddd") == 1
+    assert "exact output available" in rendered
+    assert "no further inspection needed" not in rendered
+
+
+
+def test_zero_byte_success_does_not_advertise_empty_retrieval(tmp_path: Path):
+    path = tmp_path.joinpath("result.json")
+    path.write_text("{}", encoding="utf-8")
+    rendered = _render_summary([], {
+        "summary_path": str(path),
+        "exit_code": 0,
+        "raw_bytes": 0,
+        "content_fingerprint": "e" * 64,
+        "errors": [],
+        "warnings": [],
+        "signal_lines": [],
+        "evidence": {"outcome": "unknown"},
+    })
+
+    assert "cg://output/" not in rendered
+    assert "no further inspection needed" in rendered
+
+
 def test_repeated_exact_output_uses_compact_reversible_reference():
     rendered = _render_summary([], {
         "summary_path": "/tmp/result.json",

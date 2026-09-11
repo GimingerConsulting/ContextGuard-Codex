@@ -4,11 +4,15 @@ Run:
 
 ```bash
 PYTHONPATH=. python3 benchmarks/run_benchmarks.py
+PYTHONPATH=. python3 benchmarks/run_benchmarks.py --summary --model gpt-6-astra
+PYTHONPATH=. python3 -m contextguard.cli benchmark --model gpt-5.6-luna
 ```
 
 The harness creates separate baseline and optimized copies for ten scenarios: a trivial change, medium feature, complex failure, verbose test suite, large JSON analysis, repeated errors, long session, unchanged restart, partial-change restart, and large repository.
 
 Each pair uses the same command and starting content. Success requires the same exit code and repository-state hash, excluding ContextGuard's local `.contextguard/` state. The JSON records measured output bytes and duration, estimated token reduction, ContextGuard overhead, and semantic final-response quality.
+
+`--summary` aggregates the ten fixtures and adds current OpenAI Standard API-equivalent input-cost scenarios for all-uncached, all-cached and the default 88%-cached/8%-uncached mix. The dollar values estimate input savings from visible output reduction; they are not Codex subscription billing.
 
 This is deterministic local tooling, not a complete Codex usage measurement. Token values use a labeled four-bytes-per-token estimate. Real-world claims require controlled Codex A/B runs with the same prompt, model, reasoning level, environment, tools and validation criteria.
 
@@ -21,7 +25,7 @@ python3 benchmarks/real_codex_ab.py --self-check
 python3 benchmarks/real_codex_ab.py --run
 ```
 
-The harness creates two identical settlement repositories, uses isolated Codex homes with the same authentication, runs `gpt-5.5` at medium reasoning, parses exact `turn.completed.usage` fields, and validates 130 cases plus canonical CLI output. The optimized copy alone is initialized with ContextGuard and is accepted only when its command event proves use of the project capture runner.
+The harness creates two identical settlement repositories, uses isolated Codex homes with the same authentication, accepts `--model` and `--reasoning-effort` (for example `gpt-5.6-luna` at `low`), parses exact `turn.completed.usage` fields and current Standard API-equivalent costs, and validates 130 cases plus canonical CLI output. The optimized copy alone is initialized with ContextGuard and is accepted only when its command event proves use of the project capture runner.
 
 The June 10, 2026 result in `benchmarks/results/real-codex-hard-ab-2026-06-10.json` is retained as a rejected historical hook-dependent sample. The current harness no longer configures or waits for `codex exec` lifecycle hooks; it uses the host-independent runner path and rejects any optimized trial that bypasses it.
 
@@ -42,7 +46,7 @@ Run the three-pair human-maintenance benchmark:
 
 ```bash
 python3 benchmarks/real_codex_support_ab.py --self-check
-python3 benchmarks/real_codex_support_ab.py --run
+python3 benchmarks/real_codex_support_ab.py --run --model gpt-5.6-luna --reasoning-effort low
 ```
 
 Agents receive only an incident ticket, production-style logs, an unfamiliar legacy service and three public tests. A separate hidden suite checks 144 observable customer requirements after the agent finishes. Three pairs run in counterbalanced order, and every individual trial uses a separate temporary root so agents cannot inspect the comparison repository. This benchmark measures realistic diagnosis behavior, where model exploration choices can dominate total tokens and time.

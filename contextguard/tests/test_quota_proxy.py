@@ -6,6 +6,15 @@ def test_estimate_api_cost_returns_positive_savings_for_tokens():
     data = estimate_api_cost(10_000)
     assert data["estimated_daily_api_savings_usd"] > 0
     assert data["pricing_model"] == "GPT-5.6 Sol proxy"
+    assert data["pricing_last_verified"] == "2026-09-11"
+
+
+def test_estimate_api_cost_supports_gpt6_astra_pricing():
+    data = estimate_api_cost(10_000, model="gpt-6-astra")
+
+    assert data["model"] == "gpt-6-astra"
+    assert data["pricing_model"] == "GPT-6 Astra proxy"
+    assert data["estimated_daily_api_savings_usd"] > 0
 
 
 def test_quota_proxy_report_includes_subscription_note(tmp_path):

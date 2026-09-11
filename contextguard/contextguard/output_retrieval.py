@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 from .config import state_dir
@@ -37,14 +38,21 @@ def _resolve_output(root: Path, handle: str) -> tuple[str, dict, dict]:
     return fingerprint, entry, summary
 
 
-def _stream_text(root: Path, summary: dict, key: str) -> str:
+def _stream_path(root: Path, summary: dict, key: str) -> Path:
     path = Path(str(summary.get(f"{key}_path") or "")).resolve()
     try:
         path.relative_to(state_dir(root).resolve())
     except ValueError as exc:
         raise ValueError("output stream escapes project state") from exc
+    return path
+
+
+def _stream_lines(root: Path, summary: dict, key: str) -> Iterator[tuple[int, str]]:
+    path = _stream_path(root, summary, key)
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for number, line in enumerate(handle, 1):
+                yield number, line.rstrip("\r\n")
     except OSError as exc:
         raise ValueError("output stream is unavailable") from exc
 
@@ -70,22 +78,23 @@ def retrieve_output(
     if lines is None and pattern is None:
         return result
 
+    if stream not in {"both", "stdout", "stderr"}:
+        raise ValueError("stream must be both, stdout or stderr")
     selected_streams = ("stdout", "stderr") if stream == "both" else (stream,)
-    content: list[tuple[str, int, str]] = []
-    for stream_name in selected_streams:
-        for number, text in enumerate(_stream_text(root, summary, stream_name).splitlines(), 1):
-            content.append((stream_name, number, text))
 
     if lines is not None:
         start, end = lines
         if start < 1 or end < start or end - start + 1 > MAX_WINDOW_LINES:
             raise ValueError(f"line range must contain 1-{MAX_WINDOW_LINES} lines")
         result["selection"] = {"mode": "lines", "start": start, "end": end, "stream": stream}
-        result["content"] = [
-            f"{stream_name}:{number}:{text}"
-            for stream_name, number, text in content
-            if start <= number <= end
-        ]
+        selected: list[str] = []
+        for stream_name in selected_streams:
+            for number, text in _stream_lines(root, summary, stream_name):
+                if number > end:
+                    break
+                if number >= start:
+                    selected.append(f"{stream_name}:{number}:{text}")
+        result["content"] = selected
         return result
 
     if pattern is None or not pattern or len(pattern) > 120:
@@ -94,17 +103,20 @@ def retrieve_output(
         regex = re.compile(pattern)
     except re.error as exc:
         raise ValueError(f"invalid grep pattern: {exc}") from exc
-    matches = [
-        f"{stream_name}:{number}:{text}"
-        for stream_name, number, text in content
-        if regex.search(text)
-    ]
+    match_count = 0
+    matches: list[str] = []
+    for stream_name in selected_streams:
+        for number, text in _stream_lines(root, summary, stream_name):
+            if regex.search(text):
+                match_count += 1
+                if len(matches) < MAX_MATCHES:
+                    matches.append(f"{stream_name}:{number}:{text}")
     result["selection"] = {
         "mode": "grep",
         "pattern": pattern,
         "stream": stream,
-        "match_count": len(matches),
-        "returned": min(len(matches), MAX_MATCHES),
+        "match_count": match_count,
+        "returned": len(matches),
     }
-    result["content"] = matches[:MAX_MATCHES]
+    result["content"] = matches
     return result

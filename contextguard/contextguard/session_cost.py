@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .codex_usage import current_codex_usage
 from .ledger import ledger_summary
-from .quota_proxy import estimate_api_cost
+from .quota_proxy import DEFAULT_PROXY_MODEL, estimate_api_cost
 from .session_state import load_session_state
 
 
@@ -14,12 +14,14 @@ def session_cost_report(root: Path) -> dict[str, object]:
     tokens_saved = int(totals.get("tokens_saved", 0))
     tokens_added = int(totals.get("tokens_added", 0))
     net_tokens_saved = max(0, tokens_saved - tokens_added)
-    api = estimate_api_cost(net_tokens_saved)
     state = load_session_state(root)
     usage = current_codex_usage(root)
+    models_used = list(usage.get("models_used") or [])
+    savings_model = models_used[0] if len(models_used) == 1 else DEFAULT_PROXY_MODEL
+    api = estimate_api_cost(net_tokens_saved, model=savings_model)
     return {
         "exact_usage_available": usage.get("available", False),
-        "models_used": usage.get("models_used", []),
+        "models_used": models_used,
         "input_tokens": usage.get("input_tokens", 0),
         "cached_input_tokens": usage.get("cached_input_tokens", 0),
         "cache_write_input_tokens": usage.get("cache_write_input_tokens", 0),
@@ -41,4 +43,8 @@ def session_cost_report(root: Path) -> dict[str, object]:
         "ledger_counts": ledger.get("counts", {}),
         "estimated_session_api_savings_usd": api["estimated_daily_api_savings_usd"],
         "pricing_model": api["pricing_model"],
+        "savings_pricing_model": api["model"],
+        "savings_pricing_basis": api["pricing_basis"],
+        "savings_pricing_source": api["pricing_source"],
+        "savings_pricing_last_verified": api["pricing_last_verified"],
     }

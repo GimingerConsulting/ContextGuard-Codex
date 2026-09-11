@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.4
+
+- Exposed one reversible `cg://output/<sha>` retrieval handle for non-empty successful output that is archived but not confidently classified; empty successful output remains quiet.
+- Preserved distinct semantic status and error codes when repeated log signatures are compacted.
+- Added `contextguard benchmark --model ...` with a deterministic RAW-vs-ContextGuard aggregate, exact byte measurements, visible-token estimates, and clearly labelled Standard API-equivalent input-cost scenarios.
+- Updated GPT-6 Astra and GPT-5.6 Sol/Terra/Luna Standard API rates, including cache-write and long-context pricing, from the official OpenAI pricing page verified on 2026-09-11.
+- Made the real support-ticket A/B runner configurable for model and reasoning effort; the default paid screen is GPT-5.6 Luna at low effort to limit benchmark cost.
+
 ## 0.9.3
 
 - Replaced the manual ContextGuard command workflow with transparent zero-roundtrip optimization: Codex uses normal shell/source commands while hooks compact eligible large output automatically.

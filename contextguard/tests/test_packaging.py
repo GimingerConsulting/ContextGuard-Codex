@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_project_builds_wheel_with_only_contextguard_package(tmp_path: Path):
+def test_project_builds_wheel_with_contextguard_and_benchmark_packages(tmp_path: Path):
     source = tmp_path / "source"
     shutil.copytree(
         ROOT,
@@ -37,4 +37,4 @@ def test_declared_python_minimum_matches_supported_system_runtime():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert 'requires-python = ">=3.9"' in pyproject
-    assert 'include = ["contextguard*"]' in pyproject
+    assert 'include = ["contextguard*", "benchmarks*"]' in pyproject

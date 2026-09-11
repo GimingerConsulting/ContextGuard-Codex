@@ -75,7 +75,7 @@ def test_parse_codex_session_attributes_tokens_and_cost_by_model(tmp_path):
     assert report["total_tokens"] == 1_021_000
     assert report["model_breakdown"][0]["long_context_turns"] == 1
     assert report["model_breakdown"][1]["short_context_turns"] == 1
-    assert report["api_cost_usd"] == 3.5088
+    assert report["api_cost_usd"] == 2.74176
 
 
 def test_current_usage_selects_latest_session_for_project(tmp_path):
@@ -115,4 +115,30 @@ def test_gpt56_cache_write_and_long_context_rates_are_applied():
     cost, context_class = calculate_turn_cost("gpt-5.6-terra", usage)
 
     assert context_class == "long"
-    assert cost == 1.4
+    assert cost == 1.12
+
+
+def test_gpt6_astra_standard_and_long_context_rates_are_applied():
+    short_cost, short_context = calculate_turn_cost(
+        "gpt-6-astra",
+        {
+            "input_tokens": 100_000,
+            "cached_input_tokens": 90_000,
+            "cache_write_input_tokens": 0,
+            "output_tokens": 10_000,
+        },
+    )
+    long_cost, long_context = calculate_turn_cost(
+        "gpt-6-astra",
+        {
+            "input_tokens": 300_000,
+            "cached_input_tokens": 100_000,
+            "cache_write_input_tokens": 100_000,
+            "output_tokens": 10_000,
+        },
+    )
+
+    assert short_context == "short"
+    assert short_cost == 0.69
+    assert long_context == "long"
+    assert long_cost == 5.45

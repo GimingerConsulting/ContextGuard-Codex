@@ -27,12 +27,20 @@ from benchmarks.real_codex_backend_ab import (
     repository_hash,
     run_trial as backend_run_trial,
 )
+from contextguard.codex_usage import (
+    MODEL_PRICES,
+    PRICING_LAST_VERIFIED,
+    PRICING_SOURCE,
+    calculate_turn_cost,
+    canonical_model,
+)
 
 
 PROMPT = """Please investigate and fix the customer issue in SUPPORT_TICKET.md.
 
 Treat this like a normal maintenance task in an unfamiliar repository:
 - before editing, run `python3 -m pytest -q` exactly once and follow repository instructions for safe command execution
+- when `.contextguard/bin/contextguard` exists, route noisy commands such as the full test suite, logs and broad listings through `.contextguard/bin/contextguard capture --`; otherwise run the command normally
 - reproduce the reported behavior from the ticket and available logs
 - identify the root cause instead of applying a narrow data-specific workaround
 - preserve existing public behavior unless the ticket shows it is broken
@@ -44,10 +52,10 @@ Do not weaken, delete, or skip tests. Work directly in the repository and finish
 """
 
 RUN_ORDERS = [("raw", "contextguard"), ("contextguard", "raw"), ("raw", "contextguard")]
-BENCHMARK_MODEL = os.environ.get("CONTEXTGUARD_BENCHMARK_MODEL", "gpt-5.6-sol")
-REASONING_EFFORT = os.environ.get("CONTEXTGUARD_BENCHMARK_REASONING_EFFORT", "medium")
+BENCHMARK_MODEL = os.environ.get("CONTEXTGUARD_BENCHMARK_MODEL", "gpt-5.6-luna")
+REASONING_EFFORT = os.environ.get("CONTEXTGUARD_BENCHMARK_REASONING_EFFORT", "low")
 SOL_CREDITS_PER_MILLION = {"uncached_input": 125.0, "cached_input": 12.5, "output": 750.0}
-API_USD_PER_MILLION = {"uncached_input": 5.0, "cached_input": 0.5, "output": 30.0}
+API_USD_PER_MILLION = MODEL_PRICES["gpt-5.6-sol"]["short"]
 
 
 def sol_credit_cost(run: dict) -> float:
@@ -63,17 +71,15 @@ def sol_credit_cost(run: dict) -> float:
     return round(credits, 6)
 
 
-def api_cost_usd(run: dict) -> float:
-    input_tokens = int(run.get("input_tokens", 0))
-    cached = min(input_tokens, int(run.get("cached_input_tokens", 0)))
-    uncached = max(0, input_tokens - cached)
-    output = int(run.get("output_tokens", 0))
-    cost = (
-        uncached * API_USD_PER_MILLION["uncached_input"]
-        + cached * API_USD_PER_MILLION["cached_input"]
-        + output * API_USD_PER_MILLION["output"]
-    ) / 1_000_000
-    return round(cost, 6)
+def api_cost_usd(run: dict, *, model: str = "gpt-5.6-sol") -> float | None:
+    usage = {
+        "input_tokens": int(run.get("input_tokens", 0)),
+        "cached_input_tokens": int(run.get("cached_input_tokens", 0)),
+        "cache_write_input_tokens": int(run.get("cache_write_input_tokens", 0)),
+        "output_tokens": int(run.get("output_tokens", 0)),
+    }
+    cost, _ = calculate_turn_cost(model, usage)
+    return round(cost, 6) if cost is not None else None
 
 TICKET = """# Support ticket INC-4821
 
@@ -200,8 +206,16 @@ def validate_fixture(root: Path) -> dict:
     }
 
 
-def build_codex_command(project: Path, *, optimized: bool) -> list[str]:
+def build_codex_command(
+    project: Path,
+    *,
+    optimized: bool,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> list[str]:
     command = shlex.split(os.environ.get("CONTEXTGUARD_CODEX_COMMAND", "codex"))
+    selected_model = model or BENCHMARK_MODEL
+    selected_effort = reasoning_effort or REASONING_EFFORT
     if optimized:
         compact_limit = os.environ.get("CONTEXTGUARD_AUTO_COMPACT_TOKEN_LIMIT", "").strip()
         if compact_limit:
@@ -217,7 +231,7 @@ def build_codex_command(project: Path, *, optimized: bool) -> list[str]:
             command.extend(["-c", f'model_verbosity="{verbosity}"'])
     command.extend([
         "exec", "--json", "--ephemeral", "--ignore-rules",
-        "--model", BENCHMARK_MODEL, "-c", f'model_reasoning_effort="{REASONING_EFFORT}"',
+        "--model", selected_model, "-c", f'model_reasoning_effort="{selected_effort}"',
         "--sandbox", "danger-full-access", "-c", 'approval_policy="never"',
         "-c", f"features.plugins={'true' if optimized else 'false'}", "-C", str(project), PROMPT,
     ])
@@ -238,7 +252,16 @@ def prepare_optimized_project_with_hooks(target: Path) -> None:
     (config_dir / "hooks.json").write_text(json.dumps(hooks, indent=2) + "\n", encoding="utf-8")
 
 
-def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool, timeout: int) -> dict:
+def run_trial(
+    project: Path,
+    home: Path,
+    artifact_dir: Path,
+    *,
+    optimized: bool,
+    timeout: int,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> dict:
     import benchmarks.real_codex_backend_ab as backend
 
     original_prompt = backend.PROMPT
@@ -251,7 +274,15 @@ def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool,
         backend.validate_fixture = validate_fixture
         backend.build_codex_command = build_codex_command
         backend.prepare_optimized_project = prepare_optimized_project_with_hooks
-        return backend_run_trial(project, home, artifact_dir, optimized=optimized, timeout=timeout)
+        return backend_run_trial(
+            project,
+            home,
+            artifact_dir,
+            optimized=optimized,
+            timeout=timeout,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
     finally:
         backend.PROMPT = original_prompt
         backend.validate_fixture = original_validate
@@ -259,7 +290,15 @@ def run_trial(project: Path, home: Path, artifact_dir: Path, *, optimized: bool,
         backend.prepare_optimized_project = original_prepare
 
 
-def _run_one(kind: str, root: Path, artifact_dir: Path, timeout: int) -> dict:
+def _run_one(
+    kind: str,
+    root: Path,
+    artifact_dir: Path,
+    timeout: int,
+    *,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> dict:
     project = create_fixture(root / f"{kind}-project")
     return run_trial(
         project,
@@ -267,6 +306,8 @@ def _run_one(kind: str, root: Path, artifact_dir: Path, timeout: int) -> dict:
         artifact_dir,
         optimized=kind == "contextguard",
         timeout=timeout,
+        model=model,
+        reasoning_effort=reasoning_effort,
     )
 
 
@@ -285,8 +326,8 @@ def build_release_gate(pairs: list[dict], aggregate: dict[str, dict]) -> dict[st
             pair["contextguard"].get("usage_event_seen")
         )
     total_change = aggregate["total_tokens"]["median_change_percent"]
-    credit_change = aggregate["sol_credits"]["median_change_percent"]
-    api_cost_change = aggregate["api_cost_usd"]["median_change_percent"]
+    credit_change = aggregate.get("sol_credits", {}).get("median_change_percent")
+    api_cost_change = aggregate.get("api_cost_usd", {}).get("median_change_percent")
     median_reduction = -float(total_change) if total_change is not None else None
     credit_reduction = -float(credit_change) if credit_change is not None else None
     api_cost_reduction = -float(api_cost_change) if api_cost_change is not None else None
@@ -314,7 +355,19 @@ def build_release_gate(pairs: list[dict], aggregate: dict[str, dict]) -> dict[st
     }
 
 
-def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: int = 3) -> dict:
+def execute_three_run_ab(
+    output_dir: Path,
+    *,
+    timeout: int = 1800,
+    pair_count: int = 3,
+    model: str = BENCHMARK_MODEL,
+    reasoning_effort: str = REASONING_EFFORT,
+) -> dict:
+    selected_model = canonical_model(model)
+    if selected_model not in MODEL_PRICES:
+        supported = ", ".join(sorted(MODEL_PRICES))
+        raise ValueError(f"unsupported benchmark model {model!r}; choose one of: {supported}")
+    selected_rates = MODEL_PRICES[selected_model]["short"]
     output_dir.mkdir(parents=True, exist_ok=True)
     pairs = []
     selected_orders = RUN_ORDERS[:pair_count]
@@ -322,9 +375,16 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
         results = {}
         for kind in order:
             with tempfile.TemporaryDirectory(prefix=f"contextguard-support-ab-{index}-{kind}-") as tmp:
-                results[kind] = _run_one(kind, Path(tmp), output_dir / f"pair-{index}" / kind, timeout)
+                results[kind] = _run_one(
+                    kind,
+                    Path(tmp),
+                    output_dir / f"pair-{index}" / kind,
+                    timeout,
+                    model=selected_model,
+                    reasoning_effort=reasoning_effort,
+                )
                 results[kind]["sol_credits"] = sol_credit_cost(results[kind])
-                results[kind]["api_cost_usd"] = api_cost_usd(results[kind])
+                results[kind]["api_cost_usd"] = api_cost_usd(results[kind], model=selected_model)
         raw_core = {key: results["raw"]["validation"]["canonical_output"].get(key) for key in ("sku", "quantity", "remaining", "ok")}
         contextguard_core = {key: results["contextguard"]["validation"]["canonical_output"].get(key) for key in ("sku", "quantity", "remaining", "ok")}
         accepted = all([
@@ -338,7 +398,20 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
                 results["contextguard"]["capture_runner_used"],
         ])
         pairs.append({"pair": index, "order": list(order), "accepted": accepted, **results})
-    keys = ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "reasoning_output_tokens", "tool_output_bytes", "elapsed_seconds", "command_executions", "sol_credits", "api_cost_usd"]
+    keys = [
+        "input_tokens",
+        "cached_input_tokens",
+        "cache_write_input_tokens",
+        "uncached_input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens",
+        "total_tokens",
+        "tool_output_bytes",
+        "elapsed_seconds",
+        "command_executions",
+        "sol_credits",
+        "api_cost_usd",
+    ]
     aggregate = {}
     for key in keys:
         raw_values = [pair["raw"][key] for pair in pairs]
@@ -369,7 +442,7 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
     release_gate = build_release_gate(pairs, aggregate)
     result = {
         "benchmark": f"real-codex-human-support-ticket-{pair_count}-pair-ab",
-        "model": BENCHMARK_MODEL, "reasoning_effort": REASONING_EFFORT,
+        "model": selected_model, "reasoning_effort": reasoning_effort,
         "run_orders": [list(order) for order in selected_orders],
         "optimized_runtime": {
             "tool_output_token_limit": os.environ.get("CONTEXTGUARD_TOOL_OUTPUT_TOKEN_LIMIT") or None,
@@ -377,7 +450,13 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
             "auto_compact_token_limit": os.environ.get("CONTEXTGUARD_AUTO_COMPACT_TOKEN_LIMIT") or None,
         },
         "sol_credit_rates_per_million": SOL_CREDITS_PER_MILLION,
-        "api_usd_rates_per_million": API_USD_PER_MILLION,
+        "api_usd_rates_per_million": selected_rates,
+        "api_usd_rates_per_million_by_context": MODEL_PRICES[selected_model],
+        "pricing_context_threshold_tokens": 272_000,
+        "pricing_model": selected_model,
+        "pricing_basis": "OpenAI Standard API, per-turn short/long context pricing",
+        "pricing_source": PRICING_SOURCE,
+        "pricing_last_verified": PRICING_LAST_VERIFIED,
         "all_pairs_accepted": all(pair["accepted"] for pair in pairs),
         "release_gate": release_gate,
         "pairs": pairs, "aggregate": aggregate,
@@ -385,7 +464,7 @@ def execute_three_run_ab(output_dir: Path, *, timeout: int = 1800, pair_count: i
             f"{pair_count} controlled pair(s) do not eliminate model stochasticity.",
             "Hidden tests improve quality independence but cannot represent every production repository.",
             "Codex subscription quota accounting is not exposed by the CLI.",
-            "The USD calculation uses standard GPT-5.6 Sol text-token pricing and assumes no individual request crossed the 272K long-context threshold.",
+            "The USD calculation uses the selected model's standard text-token pricing and assumes no individual request crossed the 272K long-context threshold; Codex subscription billing is not exposed.",
         ],
     }
     (output_dir / "summary.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -399,6 +478,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path, default=PLUGIN_ROOT / "benchmarks/results/real-codex-support-ab-2026-06-13")
     parser.add_argument("--timeout", type=int, default=1800)
     parser.add_argument("--pairs", type=int, choices=(1, 3), default=3)
+    parser.add_argument("--model", default=BENCHMARK_MODEL, choices=sorted(MODEL_PRICES))
+    parser.add_argument(
+        "--reasoning-effort",
+        default=REASONING_EFFORT,
+        choices=("none", "low", "medium", "high", "xhigh", "max"),
+    )
     args = parser.parse_args(argv)
     if args.self_check:
         with tempfile.TemporaryDirectory(prefix="contextguard-support-check-") as tmp:
@@ -409,7 +494,13 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"before": before["exit_code"], "after": after["exit_code"], "hidden_passed": after["hidden_passed_tests"], "canonical": after["canonical_output"]}, sort_keys=True))
             return int(after["exit_code"] != 0)
     if args.run:
-        result = execute_three_run_ab(args.output_dir, timeout=args.timeout, pair_count=args.pairs)
+        result = execute_three_run_ab(
+            args.output_dir,
+            timeout=args.timeout,
+            pair_count=args.pairs,
+            model=args.model,
+            reasoning_effort=args.reasoning_effort,
+        )
         print(json.dumps(result["aggregate"], indent=2, sort_keys=True))
         return int(not result["release_gate"]["passed"])
     parser.error("choose --self-check or --run")
