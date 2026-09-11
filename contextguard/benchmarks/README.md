@@ -35,10 +35,10 @@ Run the heavier opt-in benchmark:
 
 ```bash
 python3 benchmarks/real_codex_backend_ab.py --self-check
-python3 benchmarks/real_codex_backend_ab.py --run
+python3 benchmarks/real_codex_backend_ab.py --run --model gpt-5.6-luna --reasoning-effort low
 ```
 
-This harness creates two isolated legacy inventory-service repositories and asks Codex to complete a production-style upgrade involving schema migration, API compatibility, idempotency, optimistic versions, thread-safe reservations, deterministic audit logs, CLI behavior, repository noise, and 329 tests. Acceptance requires both agents to pass every test and produce identical canonical API, migration, and concurrency probe results. The ContextGuard trial must additionally prove project capture-runner use.
+This harness creates two isolated legacy inventory-service repositories and asks Codex to complete a production-style upgrade involving schema migration, API compatibility, idempotency, optimistic versions, thread-safe reservations, deterministic audit logs, CLI behavior, repository noise, and 329 tests. It accepts `--model` and `--reasoning-effort`, calculates the measured OpenAI Standard API proxy, and enables the same project hooks on the optimized trial. Acceptance requires both agents to pass every test and produce identical canonical API, migration, and concurrency probe results; the ContextGuard trial must additionally prove project capture-runner use.
 
 ## Human Support-Ticket A/B
 
@@ -57,7 +57,7 @@ Run:
 
 ```bash
 python3 benchmarks/real_codex_ci_ab.py --self-check
-python3 benchmarks/real_codex_ci_ab.py --run
+python3 benchmarks/real_codex_ci_ab.py --run --model gpt-5.6-luna --reasoning-effort low
 ```
 
 This benchmark starts with a locally green reporting service, a PR review note, and a large CI failure artifact covering timezone and DST cases. Agents must diagnose the discrepancy, add regression tests, preserve the public API, and update the changelog. Two counterbalanced pairs use separate temporary roots; acceptance requires all 160 hidden CI cases and the canonical CLI result.

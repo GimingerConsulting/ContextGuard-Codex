@@ -38,12 +38,22 @@ def test_backend_fixture_fails_before_reference_and_passes_after(tmp_path: Path)
 def test_raw_and_contextguard_commands_use_same_model_prompt_and_settings(tmp_path: Path):
     raw = build_codex_command(tmp_path / "raw", optimized=False)
     optimized = build_codex_command(tmp_path / "optimized", optimized=True)
-    normalized = list(optimized)
-    normalized[normalized.index(str(tmp_path / "optimized"))] = str(tmp_path / "raw")
-    assert raw == normalized
     assert raw[-1] == optimized[-1] == PROMPT
     assert "gpt-5.5" in raw
     assert 'model_reasoning_effort="medium"' in raw
+    assert "features.plugins=false" in raw
+    assert "features.plugins=true" in optimized
+
+
+def test_backend_command_accepts_cost_saving_model_and_effort(tmp_path: Path):
+    command = build_codex_command(
+        tmp_path / "project",
+        optimized=True,
+        model="gpt-5.6-luna",
+        reasoning_effort="low",
+    )
+    assert "gpt-5.6-luna" in command
+    assert 'model_reasoning_effort="low"' in command
 
 
 def test_fixture_contains_realistic_repository_noise(tmp_path: Path):
