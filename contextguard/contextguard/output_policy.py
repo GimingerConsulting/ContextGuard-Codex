@@ -25,17 +25,18 @@ def render_policy(project_kind: str) -> str:
         if project_kind == "empty"
         else (
             "- The first prompt already includes a bounded task evidence packet; "
-            "use it to skip broad orientation and inspect only evidence still needed."
+            "use it to skip broad orientation and inspect only needed evidence."
         )
     )
     return f"""ContextGuard policy: {POLICY_NAME}.
 
 {orientation}
-- Use normal shell/source commands. Hooks optimize large output automatically; never call ContextGuard commands, help, brief, or archives yourself.
-- Read exact source once and reuse it. Batch independent reads and searches in one call.
-- After editing, combine targeted tests, the full suite, and the diff check in one validation call when safe; reuse passing evidence.
+- Use normal shell/source commands. Hooks optimize large output automatically; small reads/tests stay direct; never call ContextGuard commands.
+- Cost safety: capture high-volume output; avoid repeated full validation.
+- Read exact source once; batch independent reads/searches and reuse them.
+- After edits, combine targeted tests, the full suite, and the diff check; reuse passing evidence.
 - Do not scan `.contextguard`, generated docs, caches, or archives.
-- Preserve correctness, security, validation, and data integrity. Work locally unless delegation clearly saves calls.
+- Preserve correctness, security, validation, and data integrity; work locally unless delegation saves calls.
 - Stop once evidence is sufficient. Keep reasoning concise; final: changed files, validation, and real risks.
 
 Project: {project_kind}.

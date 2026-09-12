@@ -29,6 +29,7 @@ DEFAULT_MAX_RETAINED_BYTES = 2 * 1024 * 1024
 DEFAULT_TIMEOUT_SECONDS = 30 * 60
 DEFAULT_MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 DEFAULT_MAX_ARCHIVE_COMMANDS = 200
+MIN_VISIBLE_SAVINGS_BYTES = 256
 
 
 def _positive_env_int(name: str, default: int) -> int:
@@ -146,6 +147,33 @@ def _is_noisy_medium_output(summary: dict) -> bool:
     if summary.get("errors"):
         return True
     return int(summary.get("line_count", 0)) > 50
+
+
+def _should_compact_capture(
+    summary: dict,
+    raw_bytes: int,
+    root: Path,
+    *,
+    repeated_output: dict | None = None,
+) -> bool:
+    """Select compaction from output evidence, not advisory text alone."""
+    repeated = repeated_output or {}
+    return (
+        (bool(repeated.get("repeated")) and raw_bytes >= 512)
+        or adaptive_should_compact(
+            raw_bytes,
+            root,
+            has_errors=bool(summary.get("errors")),
+            line_count=int(summary.get("line_count", 0)),
+        )
+        or raw_bytes > SMALL_PASSTHROUGH_BYTES
+        or _is_noisy_medium_output(summary)
+    )
+
+
+def _compaction_is_cost_safe(raw_bytes: int, rendered: str) -> bool:
+    visible_bytes = len(rendered.encode("utf-8"))
+    return raw_bytes - visible_bytes >= MIN_VISIBLE_SAVINGS_BYTES
 
 
 def _has_retrievable_archive(summary: dict) -> bool:
@@ -322,23 +350,18 @@ def capture(root: Path, argv: list[str]) -> int:
     increment(conn, "commands_intercepted", 1)
     increment(conn, "raw_output_bytes", summary["stdout_bytes"] + summary["stderr_bytes"])
     raw_bytes = summary["raw_bytes"]
-    should_compact = (
-        bool(advice)
-        or (
-            bool((summary.get("repeated_output") or {}).get("repeated"))
-            and raw_bytes >= 512
-        )
-        or adaptive_should_compact(
-            raw_bytes,
-            root,
-            has_errors=bool(summary.get("errors")),
-            line_count=int(summary.get("line_count", 0)),
-        )
-        or raw_bytes > SMALL_PASSTHROUGH_BYTES
-        or _is_noisy_medium_output(summary)
+    should_compact = _should_compact_capture(
+        summary,
+        raw_bytes,
+        root,
+        repeated_output=summary.get("repeated_output"),
     )
+    rendered = _render_summary(argv, summary) if should_compact else ""
+    if should_compact and not _compaction_is_cost_safe(raw_bytes, rendered):
+        # Do not spend model-visible tokens on a summary that saves nothing.
+        should_compact = False
+        rendered = ""
     if should_compact:
-        rendered = _render_summary(argv, summary)
         shown_bytes = len(rendered.encode())
     else:
         rendered = ""

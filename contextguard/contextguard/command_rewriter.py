@@ -6,6 +6,9 @@ from pathlib import Path
 
 from .budget_enforcer import _source_files_for_inspect
 from .command_classifier import _shell_script, _shell_tokens, classify_command
+from .optimization_advisor import _command_key
+from .session_state import load_session_state
+from .utils import sha256_file
 
 
 _SHELL_SEPARATORS = {";", "&&", "||", "&"}
@@ -21,6 +24,52 @@ _VALIDATION_COMMANDS = {
 }
 
 
+def _working_set_confirms_sources(root: Path, files: list[str], command: str | None = None) -> bool:
+    """Allow lossy source routing only for files verified in the task packet."""
+    if not files:
+        return False
+    if not (root / ".contextguard" / "manifest.json").is_file():
+        return True
+    working_set = load_session_state(root).get("working_set") or {}
+    if working_set:
+        for relative in files:
+            entry = working_set.get(relative) or {}
+            path = root / relative
+            prefix = str(entry.get("sha256_prefix") or "")
+            if not prefix or not path.is_file() or not sha256_file(path).startswith(prefix):
+                break
+        else:
+            return True
+    if not command:
+        return False
+    previous = (load_session_state(root).get("reads") or {}).get(_command_key(command)) or {}
+    hashes = previous.get("hashes") or {}
+    return all(
+        relative in hashes
+        and (root / relative).is_file()
+        and sha256_file(root / relative) == hashes[relative]
+        for relative in files
+    )
+
+
+def _source_files_for_command(command: str, root: Path) -> list[str]:
+    """Find source reads inside a simple shell envelope without flattening scripts."""
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return []
+    script = _shell_script(parts)
+    if script is not None:
+        try:
+            tokens = _shell_tokens(script)
+        except ValueError:
+            return []
+        if not tokens or any(token in _SHELL_SEPARATORS for token in tokens):
+            return []
+        command = shlex.join(tokens)
+    return _source_files_for_inspect(command, root)
+
+
 def rewrite_for_inspect(command: str, root: Path, runner: Path | None = None) -> str | None:
     files = _source_files_for_inspect(command, root)
     if len(files) > 4:
@@ -33,7 +82,7 @@ def rewrite_for_inspect(command: str, root: Path, runner: Path | None = None) ->
     if len(files) == 1 and (
         (parts[:1] == ["cat"] and len(parts) == 2)
         or (parts[:2] == ["nl", "-ba"] and len(parts) == 3)
-    ):
+    ) and _working_set_confirms_sources(root, files, command):
         return f"{shlex.quote(executable)} snapshot {shlex.quote(files[0])}"
     # A multi-file read asks for exact bodies. Rewriting it to the default
     # structural inspector would change semantics and can force retry turns.
@@ -131,12 +180,22 @@ def _rewrite_compound_shell(command: str, runner: Path) -> str | None:
     return shlex.join([outer[0], outer[1], " ".join(rendered)])
 
 
-def rewrite_for_capture(command: str, runner: Path | None = None) -> str | None:
+def rewrite_for_capture(
+    command: str,
+    runner: Path | None = None,
+    *,
+    root: Path | None = None,
+) -> str | None:
     # A model may already have followed the managed guidance. Wrapping that
     # command again creates nested capture summaries and extra follow-up
     # turns, which can cost more than the original output.
     if _contains_capture_runner(command):
         return None
+    if root is not None:
+        source_files = _source_files_for_command(command, root)
+        if source_files and not _working_set_confirms_sources(root, source_files, command):
+            # Never replace an unverified exact source read with a lossy summary.
+            return None
     executable = runner or Path("contextguard")
     compound = _rewrite_compound_shell(command, executable)
     if compound is not None:

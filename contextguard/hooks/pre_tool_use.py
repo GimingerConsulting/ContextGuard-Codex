@@ -36,7 +36,11 @@ if command:
     runner = Path(__file__).resolve().parents[1] / "scripts" / "contextguard"
     rewritten = None
     if budget is None or budget.action != "deny":
-        rewritten = rewrite_for_inspect(command, info.root, runner) or rewrite_for_capture(command, runner)
+        rewritten = rewrite_for_inspect(command, info.root, runner) or rewrite_for_capture(
+            command,
+            runner,
+            root=info.root,
+        )
     if os.environ.get("CONTEXTGUARD_BENCHMARK_METRICS") == "1":
         path = state_dir(info.root) / "tmp" / "hook-invocations.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
